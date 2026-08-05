@@ -79,6 +79,8 @@ function sdf(p5, fn) {
 
               float t = 0.0;
               bool hit = false;
+              float prevD = 1e10;
+              float prevT = 0.0;
               for (int i = 0; i < 256; i++) {
                 vec3 viewPos = rayOrigin + t * rayDir;
                 vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
@@ -86,7 +88,17 @@ function sdf(p5, fn) {
                 float d = HOOK_sdfScene(defaultResult, sdfPos, false).dist;
                 if (d < 0.01) { hit = true; break; }
                 if (t > uSDFMaxDist) break;
-                t += d;
+                // Near surface tangents, d shrinks toward zero and rays stall,
+                // exhausting iterations before reaching geometry behind. Stepping
+                // 1.2x when converging lets rays escape; revert on overshoot.
+                if (d < prevD) {
+                  prevT = t;
+                  prevD = d;
+                  t += d * 1.2;
+                } else {
+                  t = prevT + prevD;
+                  prevD = 1e10;
+                }
               }
 
               if (!hit) discard;
