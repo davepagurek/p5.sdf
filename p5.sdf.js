@@ -44,6 +44,8 @@ function sdf(p5, fn) {
 
             vec3 _sdfHitViewPos;
             vec3 _sdfNormal;
+            float _sdfShininess;
+            float _sdfMetalness;
           `,
           uniforms: {
             ...base.hooks.uniforms,
@@ -118,6 +120,8 @@ function sdf(p5, fn) {
 
               _sdfHitViewPos = hitViewPos;
               _sdfNormal = normalize(uNormalMatrix * sdfNormal);
+              _sdfShininess = hitResult.shininess;
+              _sdfMetalness = hitResult.metalness;
 
               inputs.normal = _sdfNormal;
               inputs.color = hitResult.color;
@@ -135,7 +139,7 @@ function sdf(p5, fn) {
             'vec4 combineColors': `(ColorComponents components) {
               vec3 diffuse;
               vec3 specular;
-              totalLight(_sdfHitViewPos, _sdfNormal, uShininess, uMetallic, diffuse, specular);
+              totalLight(_sdfHitViewPos, _sdfNormal, _sdfShininess, _sdfMetalness, diffuse, specular);
               vec4 color = vec4(0.0);
               color.rgb += diffuse * components.baseColor;
               color.rgb += components.ambient * components.ambientColor;
@@ -155,35 +159,71 @@ function sdf(p5, fn) {
     const sketch = this;
     const initialPoint = hook.point;
 
-    // Each stack frame holds the current transformed point and the pending boolean op.
-    const stack = [{ point: initialPoint, op: 'union', opK: 0 }];
+    // Capture defaults before any assignments
+    const defaults = {
+      color: hook.color,
+      ambient: hook.ambient,
+      specular: hook.specular,
+      emissive: hook.emissive,
+      shininess: hook.shininess,
+      metalness: hook.metalness,
+    };
+
+    const emptyMat = { color: null, ambient: null, specular: null, emissive: null, shininess: null, metalness: null };
+
+    // Each stack frame holds the current transformed point, pending boolean op, and material overrides
+    const stack = [{ point: initialPoint, op: 'union', opK: 0, mat: { ...emptyMat } }];
     const top = () => stack[stack.length - 1];
 
-    let result = null;
+    let result = null; // { dist, color, ambient, specular, emissive, shininess, metalness }
 
-    const smin = (a, b, k) => {
+    const computeMaterial = hook.computeMaterial;
+
+    const sminH = (a, b, k) => {
       k = p5.strandsNode(k);
-      const h = sketch.clamp(
+      return sketch.clamp(
         p5.strandsNode(0.5).add(p5.strandsNode(0.5).mult(b.sub(a).div(k))),
         0.0,
         1.0
       );
-      return sketch.mix(b, a, h).sub(k.mult(h).mult(p5.strandsNode(1.0).sub(h)));
     };
 
-    const combine = (existing, d) => {
+    // w=1 means a (existing) wins, w=0 means b (new shape) wins
+    const mixMat = (a, b, w) => ({
+      color: p5.strandsTernary(computeMaterial, sketch.mix(b.color, a.color, w), a.color),
+      ambient: p5.strandsTernary(computeMaterial, sketch.mix(b.ambient, a.ambient, w), a.ambient),
+      specular: p5.strandsTernary(computeMaterial, sketch.mix(b.specular, a.specular, w), a.specular),
+      emissive: p5.strandsTernary(computeMaterial, sketch.mix(b.emissive, a.emissive, w), a.emissive),
+      shininess: p5.strandsTernary(computeMaterial, sketch.mix(b.shininess, a.shininess, w), a.shininess),
+      metalness: p5.strandsTernary(computeMaterial, sketch.mix(b.metalness, a.metalness, w), a.metalness),
+    });
+
+    const combine = (existing, d, shapeMat) => {
       const { op, opK } = top();
-      if (existing === null) return d;
-      if (op === 'union') return sketch.min(existing, d);
-      if (op === 'subtract') return sketch.max(existing, d.mult(-1));
-      if (op === 'smoothUnion') return smin(existing, d, opK);
-      return sketch.min(existing, d);
+      if (existing === null) return { dist: d, ...shapeMat };
+
+      if (op === 'union') {
+        const w = sketch.step(existing.dist, d); // 1 when existing wins
+        return { dist: sketch.min(existing.dist, d), ...mixMat(existing, shapeMat, w) };
+      }
+      if (op === 'subtract') {
+        return { dist: sketch.max(existing.dist, d.mult(-1)), ...existing };
+      }
+      if (op === 'smoothUnion') {
+        const h = sminH(existing.dist, d, opK);
+        const k = p5.strandsNode(opK);
+        return {
+          dist: sketch.mix(d, existing.dist, h).sub(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
+          ...mixMat(existing, shapeMat, h),
+        };
+      }
+      return { dist: sketch.min(existing.dist, d), ...existing };
     };
 
     return {
       push() {
-        const { point, op, opK } = top();
-        stack.push({ point, op, opK });
+        const { point, op, opK, mat } = top();
+        stack.push({ point, op, opK, mat: { ...mat } });
       },
       pop() {
         if (stack.length > 1) stack.pop();
@@ -191,26 +231,49 @@ function sdf(p5, fn) {
       translate(x, y, z) {
         top().point = top().point.sub(sketch.vec3(x, y, z));
       },
-      union() {
-        top().op = 'union';
-        top().opK = 0;
+      union() { top().op = 'union'; top().opK = 0; },
+      subtract() { top().op = 'subtract'; top().opK = 0; },
+      smoothUnion(k) { top().op = 'smoothUnion'; top().opK = k; },
+      fill(...args) {
+        const c = sketch.color(...args);
+        top().mat.color = c;
+        top().mat.ambient = sketch.vec3(c.r, c.g, c.b);
       },
-      subtract() {
-        top().op = 'subtract';
-        top().opK = 0;
+      ambient(r, g, b) {
+        top().mat.ambient = sketch.vec3(r / 255, g / 255, b / 255);
       },
-      smoothUnion(k) {
-        top().op = 'smoothUnion';
-        top().opK = k;
+      specular(r, g, b) {
+        top().mat.specular = sketch.vec3(r / 255, g / 255, b / 255);
       },
+      emissive(r, g, b) {
+        top().mat.emissive = sketch.vec3(r / 255, g / 255, b / 255);
+      },
+      shininess(v) { top().mat.shininess = p5.strandsNode(v); },
+      metalness(v) { top().mat.metalness = p5.strandsNode(v); },
       sphere(r) {
         const d = sketch.length(top().point).sub(r);
-        result = combine(result, d);
+        const m = top().mat;
+        const shapeMat = {
+          color: m.color ?? defaults.color,
+          ambient: m.ambient ?? defaults.ambient,
+          specular: m.specular ?? defaults.specular,
+          emissive: m.emissive ?? defaults.emissive,
+          shininess: m.shininess ?? defaults.shininess,
+          metalness: m.metalness ?? defaults.metalness,
+        };
+        result = combine(result, d, shapeMat);
         top().op = 'union';
         top().opK = 0;
       },
-      get() {
-        return result !== null ? result : p5.strandsNode(1e10);
+      apply() {
+        if (result === null) return;
+        hook.dist = result.dist;
+        hook.color = result.color;
+        hook.ambient = result.ambient;
+        hook.specular = result.specular;
+        hook.emissive = result.emissive;
+        hook.shininess = result.shininess;
+        hook.metalness = result.metalness;
       },
     };
   };
