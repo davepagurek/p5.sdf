@@ -17,7 +17,7 @@ function setup() {
     sdfScene.dist = sdf.get()
     sdfScene.end()
   })
-  // console.log(mySDF.shader.fragSrc())
+  console.log(mySDF.shader.fragSrc())
 }
 
 function draw() {

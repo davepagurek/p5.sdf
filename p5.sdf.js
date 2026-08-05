@@ -11,12 +11,9 @@ function sdf(p5, fn) {
   }
 
   // Injected into _fragSrc (after precision declarations) so the hook type parser
-  // can find the struct definition via shader._fragSrc. Also a good place for
-  // fragment-only uniforms already declared in phong.vert -- putting them in
-  // `declarations` would cause redefinition errors since that block goes to both stages.
-  // Also a good place for fragment-only uniforms that are already declared in
-  // phong.vert -- putting them in `declarations` would cause redefinition errors
-  // since that block is emitted into both stages.
+  // can find the struct definition via shader._fragSrc. TODO: Update p5 upstream
+  // to be able to read this out of declarations instead, and to let fragDeclarations
+  // work in the constructor
   const fragPrefix = `
     struct SDFResult {
       float dist;
