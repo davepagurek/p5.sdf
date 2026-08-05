@@ -1,0 +1,14 @@
+{
+  "name": "p5.sdf",
+  "version": "0.0.1",
+  "description": "SDF raymarching for p5.strands",
+  "main": "p5.sdf.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Dave Pagurek",
+  "license": "MIT",
+  "files": [
+    "p5.sdf.js"
+  ]
+}
