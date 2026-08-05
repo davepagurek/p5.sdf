@@ -1,25 +1,45 @@
 function sdf(p5, fn) {
+  function injectAfterLastPrecision(src, injection) {
+    const lines = src.split('\n');
+    let lastPrecisionIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*precision\s+/.test(lines[i])) lastPrecisionIdx = i;
+    }
+    const insertAt = lastPrecisionIdx === -1 ? 0 : lastPrecisionIdx + 1;
+    lines.splice(insertAt, 0, injection);
+    return lines.join('\n');
+  }
+
+  // Injected into _fragSrc (after precision declarations) so the hook type parser
+  // can find the struct definition via shader._fragSrc. Also a good place for
+  // fragment-only uniforms already declared in phong.vert -- putting them in
+  // `declarations` would cause redefinition errors since that block goes to both stages.
+  // Also a good place for fragment-only uniforms that are already declared in
+  // phong.vert -- putting them in `declarations` would cause redefinition errors
+  // since that block is emitted into both stages.
+  const fragPrefix = `
+    struct SDFResult {
+      float dist;
+      vec4 color;
+      vec3 ambient;
+      vec3 specular;
+      vec3 emissive;
+      float shininess;
+      float metalness;
+    };
+    uniform mat4 uProjectionMatrix;
+    uniform mat3 uNormalMatrix;
+  `;
+
   fn.baseSDFShader = function() {
     if (!this._baseSDFShader) {
       const base = this.baseMaterialShader();
       this._baseSDFShader = new p5.Shader(
         base._renderer,
         base._vertSrc,
-        base._fragSrc,
+        injectAfterLastPrecision(base._fragSrc, fragPrefix),
         {
           declarations: `
-            struct SDFResult {
-              float dist;
-              vec4 color;
-              vec3 ambient;
-              vec3 specular;
-              vec3 emissive;
-              float shininess;
-              float metalness;
-            };
-
-            uniform mat4 uProjectionMatrix;
-            uniform mat3 uNormalMatrix;
             uniform mat4 uInverseModelViewMatrix;
             uniform mat4 uInverseProjectionMatrix;
             uniform float uSDFMaxDist;
@@ -50,21 +70,21 @@ function sdf(p5, fn) {
               vec3 rayOrigin = vViewPosition;
 
               SDFResult defaultResult;
-              defaultResult.color = uMaterialColor;
-              defaultResult.ambient = uAmbientMatColor.rgb;
-              defaultResult.specular = uSpecularMatColor.rgb;
-              defaultResult.emissive = uEmissiveMatColor.rgb;
-              defaultResult.shininess = uShininess;
-              defaultResult.metalness = uMetallic;
+              defaultResult.color = inputs.color;
+              defaultResult.ambient = inputs.ambientMaterial;
+              defaultResult.specular = inputs.specularMaterial;
+              defaultResult.emissive = inputs.emissiveMaterial;
+              defaultResult.shininess = inputs.shininess;
+              defaultResult.metalness = inputs.metalness;
 
               float t = 0.0;
               bool hit = false;
-              for (int i = 0; i < 64; i++) {
+              for (int i = 0; i < 256; i++) {
                 vec3 viewPos = rayOrigin + t * rayDir;
                 vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
                 defaultResult.dist = 1e10;
                 float d = HOOK_sdfScene(defaultResult, sdfPos, false).dist;
-                if (d < 0.001) { hit = true; break; }
+                if (d < 0.01) { hit = true; break; }
                 if (t > uSDFMaxDist) break;
                 t += d;
               }
@@ -78,13 +98,14 @@ function sdf(p5, fn) {
               SDFResult hitResult = HOOK_sdfScene(defaultResult, hitSdfPos, true);
 
               float eps = 0.5;
-              vec3 e = vec3(eps, 0.0, 0.0);
+              vec2 k = vec2(1.0, -1.0);
               defaultResult.dist = 1e10;
-              vec3 sdfNormal = normalize(vec3(
-                HOOK_sdfScene(defaultResult, hitSdfPos + e.xyy, false).dist - HOOK_sdfScene(defaultResult, hitSdfPos - e.xyy, false).dist,
-                HOOK_sdfScene(defaultResult, hitSdfPos + e.yxy, false).dist - HOOK_sdfScene(defaultResult, hitSdfPos - e.yxy, false).dist,
-                HOOK_sdfScene(defaultResult, hitSdfPos + e.yyx, false).dist - HOOK_sdfScene(defaultResult, hitSdfPos - e.yyx, false).dist
-              ));
+              vec3 sdfNormal = normalize(
+                k.xyy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xyy, false).dist +
+                k.yyx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yyx, false).dist +
+                k.yxy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yxy, false).dist +
+                k.xxx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xxx, false).dist
+              );
 
               _sdfHitViewPos = hitViewPos;
               _sdfNormal = normalize(uNormalMatrix * sdfNormal);
@@ -196,10 +217,10 @@ function sdf(p5, fn) {
         return this;
       },
       draw(radiusOrCallback = 200) {
-        const renderer = sketch._renderer;
-
+        sketch.push();
         sketch.shader(shader);
 
+        const renderer = sketch._renderer;
         const mvMatrix = renderer.uMVMatrix;
         mvMatrix.invert(mvMatrix);
         shader.setUniform('uInverseModelViewMatrix', mvMatrix.mat4);
@@ -215,6 +236,8 @@ function sdf(p5, fn) {
         } else {
           radiusOrCallback();
         }
+
+        sketch.pop();
       },
     };
   };
