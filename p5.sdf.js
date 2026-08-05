@@ -250,20 +250,50 @@ function sdf(p5, fn) {
       },
       shininess(v) { top().mat.shininess = p5.strandsNode(v); },
       metalness(v) { top().mat.metalness = p5.strandsNode(v); },
-      sphere(r) {
-        const d = sketch.length(top().point).sub(r);
+      _addShape(d) {
         const m = top().mat;
-        const shapeMat = {
+        result = combine(result, d, {
           color: m.color ?? defaults.color,
           ambient: m.ambient ?? defaults.ambient,
           specular: m.specular ?? defaults.specular,
           emissive: m.emissive ?? defaults.emissive,
           shininess: m.shininess ?? defaults.shininess,
           metalness: m.metalness ?? defaults.metalness,
-        };
-        result = combine(result, d, shapeMat);
+        });
         top().op = 'union';
         top().opK = 0;
+      },
+      sphere(r) {
+        this._addShape(sketch.length(top().point).sub(r));
+      },
+      box(width, height, depth) {
+        if (height === undefined) height = width;
+        if (depth === undefined) depth = width;
+        const p = top().point;
+        const b = sketch.vec3(width / 2, height / 2, depth / 2);
+        const q = sketch.abs(p).sub(b);
+        this._addShape(
+          sketch.length(sketch.max(q, 0.0)).add(
+            sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)
+          )
+        );
+      },
+      cylinder(radius, height) {
+        const p = top().point;
+        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
+        const d2 = sketch.vec2(xzLen.sub(radius), sketch.abs(p.y).sub(height / 2));
+        this._addShape(
+          sketch.min(sketch.max(d2.x, d2.y), 0.0).add(
+            sketch.length(sketch.max(d2, 0.0))
+          )
+        );
+      },
+      torus(radius, tubeRadius) {
+        const p = top().point;
+        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
+        this._addShape(
+          sketch.length(sketch.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius)
+        );
       },
       apply() {
         if (result === null) return;

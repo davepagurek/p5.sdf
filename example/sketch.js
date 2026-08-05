@@ -15,7 +15,7 @@ function setup() {
     sdf.sphere(40)
     sdf.pop()
     sdf.fill('blue')
-    sdf.sphere(60)
+    sdf.box(60)
 
     sdf.apply()
     sdfScene.end()
