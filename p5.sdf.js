@@ -159,8 +159,9 @@ function sdf(p5, fn) {
 
     const emptyMat = { color: null, ambient: null, specular: null, emissive: null, shininess: null, metalness: null };
 
-    // Each stack frame holds the current transformed point, pending boolean op, and material overrides
-    const stack = [{ point: initialPoint, op: 'union', opK: 0, mat: { ...emptyMat } }];
+    // Each stack frame holds: transformed point, pending boolean op, material overrides,
+    // cumulative scale factor (for distance correction), and a composed distance modifier.
+    const stack = [{ point: initialPoint, op: 'union', opK: 0, mat: { ...emptyMat }, scale: 1, mod: null }];
     const top = () => stack[stack.length - 1];
 
     let result = null; // { dist, color, ambient, specular, emissive, shininess, metalness }
@@ -186,6 +187,15 @@ function sdf(p5, fn) {
       metalness: p5.strandsTernary(computeMaterial, sketch.mix(b.metalness, a.metalness, w), a.metalness),
     });
 
+    const existingMat = (existing) => ({
+      color: existing.color,
+      ambient: existing.ambient,
+      specular: existing.specular,
+      emissive: existing.emissive,
+      shininess: existing.shininess,
+      metalness: existing.metalness,
+    });
+
     const combine = (existing, d, shapeMat) => {
       const { op, opK } = top();
       if (existing === null) return { dist: d, ...shapeMat };
@@ -195,7 +205,11 @@ function sdf(p5, fn) {
         return { dist: sketch.min(existing.dist, d), ...mixMat(existing, shapeMat, w) };
       }
       if (op === 'subtract') {
-        return { dist: sketch.max(existing.dist, d.mult(-1)), ...existing };
+        return { dist: sketch.max(existing.dist, d.mult(-1)), ...existingMat(existing) };
+      }
+      if (op === 'intersect') {
+        const w = sketch.step(d, existing.dist); // 1 when existing >= d (existing surface visible)
+        return { dist: sketch.max(existing.dist, d), ...mixMat(existing, shapeMat, w) };
       }
       if (op === 'smoothUnion') {
         const h = sminH(existing.dist, d, opK);
@@ -205,23 +219,132 @@ function sdf(p5, fn) {
           ...mixMat(existing, shapeMat, h),
         };
       }
-      return { dist: sketch.min(existing.dist, d), ...existing };
+      if (op === 'smoothSubtract') {
+        const neg_d = d.mult(p5.strandsNode(-1.0));
+        const h = sminH(existing.dist, neg_d, opK);
+        const k = p5.strandsNode(opK);
+        return {
+          dist: sketch.mix(existing.dist, neg_d, h).add(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
+          ...existingMat(existing),
+        };
+      }
+      if (op === 'smoothIntersect') {
+        const h = sminH(existing.dist, d, opK);
+        const k = p5.strandsNode(opK);
+        return {
+          dist: sketch.mix(existing.dist, d, h).add(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
+          ...mixMat(existing, shapeMat, p5.strandsNode(1.0).sub(h)),
+        };
+      }
+      return { dist: sketch.min(existing.dist, d), ...existingMat(existing) };
     };
 
     return {
       push() {
-        const { point, op, opK, mat } = top();
-        stack.push({ point, op, opK, mat: { ...mat } });
+        const { point, op, opK, mat, scale, mod } = top();
+        stack.push({ point, op, opK, mat: { ...mat }, scale, mod });
       },
       pop() {
         if (stack.length > 1) stack.pop();
       },
+
+      ////////////////////////
+      // TRANSFORMS
+      ////////////////////////
       translate(x, y, z) {
         top().point = top().point.sub(sketch.vec3(x, y, z));
       },
-      union() { top().op = 'union'; top().opK = 0; },
-      subtract() { top().op = 'subtract'; top().opK = 0; },
-      smoothUnion(k) { top().op = 'smoothUnion'; top().opK = k; },
+      scale(s) {
+        top().point = top().point.div(p5.strandsNode(s));
+        top().scale = top().scale * s;
+      },
+      mirror(axis) {
+        const p = top().point;
+        if (axis === 'x') top().point = sketch.vec3(sketch.abs(p.x), p.y, p.z);
+        else if (axis === 'y') top().point = sketch.vec3(p.x, sketch.abs(p.y), p.z);
+        else if (axis === 'z') top().point = sketch.vec3(p.x, p.y, sketch.abs(p.z));
+      },
+      elongate(hx, hy, hz) {
+        const p = top().point;
+        top().point = p.sub(sketch.clamp(p, sketch.vec3(-hx, -hy, -hz), sketch.vec3(hx, hy, hz)));
+      },
+      twist(k) {
+        const p = top().point;
+        const angle = p5.strandsNode(k).mult(p.y);
+        const c = sketch.cos(angle);
+        const s = sketch.sin(angle);
+        top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.z)), p.y, s.mult(p.x).add(c.mult(p.z)));
+      },
+      bend(k) {
+        const p = top().point;
+        const angle = p5.strandsNode(k).mult(p.x);
+        const c = sketch.cos(angle);
+        const s = sketch.sin(angle);
+        top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.y)), s.mult(p.x).add(c.mult(p.y)), p.z);
+      },
+
+      rotateX(a) {
+        const p = top().point;
+        const c = sketch.cos(a);
+        const s = sketch.sin(a);
+        top().point = sketch.vec3(p.x, p.y.mult(c).add(p.z.mult(s)), p.z.mult(c).sub(p.y.mult(s)));
+      },
+      rotateY(a) {
+        const p = top().point;
+        const c = sketch.cos(a);
+        const s = sketch.sin(a);
+        top().point = sketch.vec3(p.x.mult(c).sub(p.z.mult(s)), p.y, p.x.mult(s).add(p.z.mult(c)));
+      },
+      rotateZ(a) {
+        const p = top().point;
+        const c = sketch.cos(a);
+        const s = sketch.sin(a);
+        top().point = sketch.vec3(p.x.mult(c).add(p.y.mult(s)), p.y.mult(c).sub(p.x.mult(s)), p.z);
+      },
+
+      ////////////////////////
+      // BOOLEAN OPS
+      ////////////////////////
+      union() {
+        top().op = 'union';
+        top().opK = 0;
+      },
+      subtract() {
+        top().op = 'subtract';
+        top().opK = 0;
+      },
+      intersect() {
+        top().op = 'intersect';
+        top().opK = 0;
+      },
+      smoothUnion(k) {
+        top().op = 'smoothUnion';
+        top().opK = k;
+      },
+      smoothSubtract(k) {
+        top().op = 'smoothSubtract';
+        top().opK = k;
+      },
+      smoothIntersect(k) {
+        top().op = 'smoothIntersect';
+        top().opK = k;
+      },
+
+      ////////////////////////
+      // DISTANCE MODIFIERS
+      ////////////////////////
+      round(r) {
+        const prev = top().mod;
+        top().mod = d => (prev ? prev(d) : d).sub(p5.strandsNode(r));
+      },
+      onion(t) {
+        const prev = top().mod;
+        top().mod = d => sketch.abs(prev ? prev(d) : d).sub(p5.strandsNode(t));
+      },
+
+      ////////////////////////
+      // MATERIALS
+      ////////////////////////
       fill(...args) {
         const c = sketch.color(...args);
         top().mat.color = c;
@@ -236,10 +359,18 @@ function sdf(p5, fn) {
       emissive(r, g, b) {
         top().mat.emissive = sketch.vec3(r / 255, g / 255, b / 255);
       },
-      shininess(v) { top().mat.shininess = p5.strandsNode(v); },
-      metalness(v) { top().mat.metalness = p5.strandsNode(v); },
+      shininess(v) {
+        top().mat.shininess = p5.strandsNode(v);
+      },
+      metalness(v) {
+        top().mat.metalness = p5.strandsNode(v);
+      },
+
       _addShape(d) {
-        const m = top().mat;
+        const frame = top();
+        if (frame.scale !== 1) d = d.mult(p5.strandsNode(frame.scale));
+        if (frame.mod !== null) d = frame.mod(d);
+        const m = frame.mat;
         result = combine(result, d, {
           color: m.color ?? defaults.color,
           ambient: m.ambient ?? defaults.ambient,
@@ -248,9 +379,11 @@ function sdf(p5, fn) {
           shininess: m.shininess ?? defaults.shininess,
           metalness: m.metalness ?? defaults.metalness,
         });
-        top().op = 'union';
-        top().opK = 0;
       },
+
+      ////////////////////////
+      // PRIMITIVES
+      ////////////////////////
       sphere(r) {
         this._addShape(sketch.length(top().point).sub(r));
       },
@@ -261,28 +394,64 @@ function sdf(p5, fn) {
         const b = sketch.vec3(width / 2, height / 2, depth / 2);
         const q = sketch.abs(p).sub(b);
         this._addShape(
-          sketch.length(sketch.max(q, 0.0)).add(
-            sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)
-          )
+          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0))
         );
+      },
+      roundBox(width, height, depth, r) {
+        if (height === undefined) height = width;
+        if (depth === undefined) depth = width;
+        const p = top().point;
+        const b = sketch.vec3(width / 2 - r, height / 2 - r, depth / 2 - r);
+        const q = sketch.abs(p).sub(b);
+        this._addShape(
+          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)).sub(p5.strandsNode(r))
+        );
+      },
+      boxFrame(width, height, depth, e) {
+        if (height === undefined) height = width;
+        if (depth === undefined) depth = width;
+        const pv = sketch.abs(top().point).sub(sketch.vec3(width / 2, height / 2, depth / 2));
+        const ev = p5.strandsNode(e);
+        const q = sketch.abs(pv.add(ev)).sub(ev);
+        const d1 = sketch.length(sketch.max(sketch.vec3(pv.x, q.y, q.z), 0.0)).add(sketch.min(sketch.max(pv.x, sketch.max(q.y, q.z)), 0.0));
+        const d2 = sketch.length(sketch.max(sketch.vec3(q.x, pv.y, q.z), 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(pv.y, q.z)), 0.0));
+        const d3 = sketch.length(sketch.max(sketch.vec3(q.x, q.y, pv.z), 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, pv.z)), 0.0));
+        this._addShape(sketch.min(sketch.min(d1, d2), d3));
       },
       cylinder(radius, height) {
         const p = top().point;
         const xzLen = sketch.length(sketch.vec2(p.x, p.z));
         const d2 = sketch.vec2(xzLen.sub(radius), sketch.abs(p.y).sub(height / 2));
-        this._addShape(
-          sketch.min(sketch.max(d2.x, d2.y), 0.0).add(
-            sketch.length(sketch.max(d2, 0.0))
-          )
-        );
+        this._addShape(sketch.min(sketch.max(d2.x, d2.y), 0.0).add(sketch.length(sketch.max(d2, 0.0))));
+      },
+      capsule(h, r) {
+        const p = top().point;
+        const py = p.y.sub(sketch.clamp(p.y, 0.0, h));
+        this._addShape(sketch.length(sketch.vec3(p.x, py, p.z)).sub(p5.strandsNode(r)));
       },
       torus(radius, tubeRadius) {
         const p = top().point;
         const xzLen = sketch.length(sketch.vec2(p.x, p.z));
+        this._addShape(sketch.length(sketch.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius));
+      },
+      plane(nx, ny, nz, h) {
+        const p = top().point;
         this._addShape(
-          sketch.length(sketch.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius)
+          p5.strandsNode(nx).mult(p.x).add(p5.strandsNode(ny).mult(p.y)).add(p5.strandsNode(nz).mult(p.z)).add(p5.strandsNode(h))
         );
       },
+      ellipsoid(rx, ry, rz) {
+        const p = top().point;
+        const r = sketch.vec3(rx, ry, rz);
+        const k0 = sketch.length(p.div(r));
+        const k1 = sketch.length(p.div(r.mult(r)));
+        this._addShape(k0.mult(k0.sub(p5.strandsNode(1.0))).div(k1));
+      },
+      octahedron(s) {
+        const p = sketch.abs(top().point);
+        this._addShape(p.x.add(p.y).add(p.z).sub(p5.strandsNode(s)).mult(p5.strandsNode(0.57735027)));
+      },
+
       apply() {
         if (result === null) return;
         hook.dist = result.dist;
@@ -312,7 +481,7 @@ function sdf(p5, fn) {
         sketch.noStroke();
 
         const renderer = sketch._renderer;
-        const mvMatrix = renderer.uMVMatrix;
+        const mvMatrix = renderer.uMVMatrix.copy();
         mvMatrix.invert(mvMatrix);
         shader.setUniform('uInverseModelViewMatrix', mvMatrix.mat4);
 
