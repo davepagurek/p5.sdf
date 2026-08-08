@@ -406,7 +406,11 @@ function sdf(p5, fn) {
         if (height === undefined) height = width;
         if (depth === undefined) depth = width;
         const p = top().point;
-        const b = sketch.vec3(width / 2, height / 2, depth / 2);
+        const b = sketch.vec3(
+          p5.strandsNode(width).mult(0.5),
+          p5.strandsNode(height).mult(0.5),
+          p5.strandsNode(depth).mult(0.5)
+        );
         const q = sketch.abs(p).sub(b);
         this._addShape(
           sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0))
@@ -416,16 +420,25 @@ function sdf(p5, fn) {
         if (height === undefined) height = width;
         if (depth === undefined) depth = width;
         const p = top().point;
-        const b = sketch.vec3(width / 2 - r, height / 2 - r, depth / 2 - r);
+        const rNode = p5.strandsNode(r);
+        const b = sketch.vec3(
+          p5.strandsNode(width).mult(0.5).sub(rNode),
+          p5.strandsNode(height).mult(0.5).sub(rNode),
+          p5.strandsNode(depth).mult(0.5).sub(rNode)
+        );
         const q = sketch.abs(p).sub(b);
         this._addShape(
-          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)).sub(p5.strandsNode(r))
+          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)).sub(rNode)
         );
       },
       boxFrame(width, height, depth, e) {
         if (height === undefined) height = width;
         if (depth === undefined) depth = width;
-        const pv = sketch.abs(top().point).sub(sketch.vec3(width / 2, height / 2, depth / 2));
+        const pv = sketch.abs(top().point).sub(sketch.vec3(
+          p5.strandsNode(width).mult(0.5),
+          p5.strandsNode(height).mult(0.5),
+          p5.strandsNode(depth).mult(0.5)
+        ));
         const ev = p5.strandsNode(e);
         const q = sketch.abs(pv.add(ev)).sub(ev);
         const d1 = sketch.length(sketch.max(sketch.vec3(pv.x, q.y, q.z), 0.0)).add(sketch.min(sketch.max(pv.x, sketch.max(q.y, q.z)), 0.0));
@@ -436,7 +449,10 @@ function sdf(p5, fn) {
       cylinder(radius, height) {
         const p = top().point;
         const xzLen = sketch.length(sketch.vec2(p.x, p.z));
-        const d2 = sketch.vec2(xzLen.sub(radius), sketch.abs(p.y).sub(height / 2));
+        const d2 = sketch.vec2(
+          xzLen.sub(p5.strandsNode(radius)),
+          sketch.abs(p.y).sub(p5.strandsNode(height).mult(0.5))
+        );
         this._addShape(sketch.min(sketch.max(d2.x, d2.y), 0.0).add(sketch.length(sketch.max(d2, 0.0))));
       },
       capsule(h, r) {
