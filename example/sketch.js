@@ -30,8 +30,10 @@ function draw() {
   lights()
   specularMaterial(200)
   shininess(300)
+  push()
+  translate(0, 100*sin(millis()*0.001))
   mySDF.draw(200)
-  // sphere(40)
+  pop()
 
   push()
   fill('green')

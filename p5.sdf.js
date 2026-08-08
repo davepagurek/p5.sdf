@@ -78,26 +78,14 @@ function sdf(p5, fn) {
 
               float t = 0.0;
               bool hit = false;
-              float prevD = 1e10;
-              float prevT = 0.0;
               for (int i = 0; i < 256; i++) {
                 vec3 viewPos = rayOrigin + t * rayDir;
                 vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
                 defaultResult.dist = 1e10;
                 float d = HOOK_sdfScene(defaultResult, sdfPos, false).dist;
-                if (d < 0.01) { hit = true; break; }
+                if (d < 0.001) { hit = true; break; }
                 if (t > uSDFMaxDist) break;
-                // Near surface tangents, d shrinks toward zero and rays stall,
-                // exhausting iterations before reaching geometry behind. Stepping
-                // 1.2x when converging lets rays escape; revert on overshoot.
-                if (d < prevD) {
-                  prevT = t;
-                  prevD = d;
-                  t += d * 1.2;
-                } else {
-                  t = prevT + prevD;
-                  prevD = 1e10;
-                }
+                t += d;
               }
 
               if (!hit) discard;
@@ -108,7 +96,7 @@ function sdf(p5, fn) {
               defaultResult.dist = 1e10;
               SDFResult hitResult = HOOK_sdfScene(defaultResult, hitSdfPos, true);
 
-              float eps = 0.5;
+              float eps = 0.001;
               vec2 k = vec2(1.0, -1.0);
               defaultResult.dist = 1e10;
               vec3 sdfNormal = normalize(
@@ -321,6 +309,7 @@ function sdf(p5, fn) {
       draw(radiusOrCallback = 200) {
         sketch.push();
         sketch.shader(shader);
+        sketch.noStroke();
 
         const renderer = sketch._renderer;
         const mvMatrix = renderer.uMVMatrix;
@@ -331,14 +320,19 @@ function sdf(p5, fn) {
         pMatrix.invert(pMatrix);
         shader.setUniform('uInverseProjectionMatrix', pMatrix.mat4);
 
+        sketch.drawingContext.enable(sketch.drawingContext.CULL_FACE);
+        sketch.drawingContext.cullFace(sketch.drawingContext.FRONT);
+
         if (typeof radiusOrCallback === 'number') {
           const r = radiusOrCallback;
           shader.setUniform('uSDFMaxDist', r * 2.0);
           sketch.sphere(r);
         } else {
+          shader.setUniform('uSDFMaxDist', 1000);
           radiusOrCallback();
         }
 
+        sketch.drawingContext.disable(sketch.drawingContext.CULL_FACE);
         sketch.pop();
       },
     };
