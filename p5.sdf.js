@@ -381,6 +381,15 @@ function sdf(p5, fn) {
         top().mat.metalness = p5.strandsNode(v);
       },
 
+      times(n) {
+        const self = this;
+        return {
+          each(fn) {
+            for (let i = 0; i < n; i++) fn(i);
+          },
+        };
+      },
+
       _addShape(d) {
         const frame = top();
         if (frame.scale !== 1) d = d.mult(p5.strandsNode(frame.scale));
