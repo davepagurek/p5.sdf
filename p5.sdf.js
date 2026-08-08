@@ -270,17 +270,32 @@ function sdf(p5, fn) {
       },
       twist(k) {
         const p = top().point;
-        const angle = p5.strandsNode(k).mult(p.y);
+        const kNode = p5.strandsNode(k);
+        const angle = kNode.mult(p.y);
         const c = sketch.cos(angle);
         const s = sketch.sin(angle);
         top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.z)), p.y, s.mult(p.x).add(c.mult(p.z)));
+        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
+        const lipschitz = p5.strandsNode(1.0).add(sketch.abs(kNode).mult(xzLen));
+        const prev = top().mod;
+        top().mod = d => {
+          const corrected = d.div(lipschitz);
+          return prev ? prev(corrected) : corrected;
+        };
       },
       bend(k) {
         const p = top().point;
-        const angle = p5.strandsNode(k).mult(p.x);
+        const kNode = p5.strandsNode(k);
+        const angle = kNode.mult(p.x);
         const c = sketch.cos(angle);
         const s = sketch.sin(angle);
         top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.y)), s.mult(p.x).add(c.mult(p.y)), p.z);
+        const lipschitz = p5.strandsNode(1.0).add(sketch.abs(kNode).mult(sketch.length(p)));
+        const prev = top().mod;
+        top().mod = d => {
+          const corrected = d.div(lipschitz);
+          return prev ? prev(corrected) : corrected;
+        };
       },
 
       rotateX(a) {
