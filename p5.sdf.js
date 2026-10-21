@@ -143,371 +143,363 @@ function sdf(p5, fn) {
     return this._baseSDFShader;
   };
 
-  fn.distanceFunction = function(hook) {
-    const sketch = this;
-    const initialPoint = hook.point;
+  const OPS = {
+    union: 0,
+    subtract: 1,
+    intersect: 2,
+    smoothUnion: 3,
+    smoothSubtract: 4,
+    smoothIntersect: 5,
+  };
 
-    // Capture defaults before any assignments
-    const defaults = {
-      color: hook.color,
-      ambient: hook.ambient,
-      specular: hook.specular,
-      emissive: hook.emissive,
-      shininess: hook.shininess,
-      metalness: hook.metalness,
-    };
+  const MATERIAL_FIELDS = ['color', 'ambient', 'specular', 'emissive', 'shininess', 'metalness'];
 
-    const emptyMat = { color: null, ambient: null, specular: null, emissive: null, shininess: null, metalness: null };
+  // Scoped fields are restored by pop, global fields accumulate across it
+  const withState = (state, scoped = {}, global = {}) => ({
+    scoped: { ...state.scoped, ...scoped },
+    global: { ...state.global, ...global },
+  });
 
-    // Each stack frame holds: transformed point, pending boolean op, material overrides,
-    // cumulative scale factor (for distance correction), and a composed distance modifier.
-    const stack = [{ point: initialPoint, op: 'union', opK: 0, mat: { ...emptyMat }, scale: 1, mod: null }];
-    const top = () => stack[stack.length - 1];
+  // Distance modifiers are numeric fields rather than closures so they can be
+  // restored by pop and merged across branches. Shapes are corrected by
+  // `lip` first, then offset by `roundIn`, then (if `onion` is 1) shelled with `roundOut`
+  const addShape = (sketch, state, config, d) => {
+    const { scoped: s, global: g } = state;
+    const one = p5.strandsNode(1.0);
+    const half = p5.strandsNode(0.5);
 
-    let result = null; // { dist, color, ambient, specular, emissive, shininess, metalness }
+    const corrected = d.mult(s.scale).div(s.lip).sub(s.roundIn);
+    d = sketch.mix(corrected, sketch.abs(corrected).sub(s.roundOut), s.onion);
 
-    const computeMaterial = hook.computeMaterial;
+    // Guarded so unused smooth ops stay finite when they get multiplied by a zero weight
+    const k = sketch.max(s.opK, 0.0001);
+    const e = g.dist;
+    const sminH = (a, b) => sketch.clamp(half.add(half.mult(b.sub(a).div(k))), 0.0, 1.0);
+    const smoothTerm = h => k.mult(h).mult(one.sub(h));
 
-    const sminH = (a, b, k) => {
-      k = p5.strandsNode(k);
-      return sketch.clamp(
-        p5.strandsNode(0.5).add(p5.strandsNode(0.5).mult(b.sub(a).div(k))),
-        0.0,
-        1.0
+    const negD = d.mult(-1.0);
+    const hUnion = sminH(e, d);
+    const hSubtract = sminH(e, negD);
+    const hIntersect = sminH(e, d);
+
+    // w=1 means the existing shape's material wins
+    const candidates = [
+      [OPS.union, sketch.min(e, d), sketch.step(e, d)],
+      [OPS.subtract, sketch.max(e, negD), one],
+      [OPS.intersect, sketch.max(e, d), sketch.step(d, e)],
+      [OPS.smoothUnion, sketch.mix(d, e, hUnion).sub(smoothTerm(hUnion)), hUnion],
+      [OPS.smoothSubtract, sketch.mix(e, negD, hSubtract).add(smoothTerm(hSubtract)), one],
+      [OPS.smoothIntersect, sketch.mix(e, d, hIntersect).add(smoothTerm(hIntersect)), one.sub(hIntersect)],
+    ];
+    let combined = null;
+    let w = null;
+    for (const [code, candidateDist, candidateW] of candidates) {
+      const active = one.sub(sketch.step(half, sketch.abs(s.op.sub(code))));
+      combined = combined ? combined.add(active.mult(candidateDist)) : active.mult(candidateDist);
+      w = w ? w.add(active.mult(candidateW)) : active.mult(candidateW);
+    }
+
+    // The first shape has nothing to combine with
+    const existingW = w.mult(g.has);
+    const global = { dist: sketch.mix(d, combined, g.has), has: one };
+    for (const field of MATERIAL_FIELDS) {
+      global[field] = p5.strandsTernary(
+        config.computeMaterial,
+        sketch.mix(s[field], g[field], existingW),
+        g[field]
       );
-    };
+    }
+    return withState(state, {}, global);
+  };
 
-    // w=1 means a (existing) wins, w=0 means b (new shape) wins
-    const mixMat = (a, b, w) => ({
-      color: p5.strandsTernary(computeMaterial, sketch.mix(b.color, a.color, w), a.color),
-      ambient: p5.strandsTernary(computeMaterial, sketch.mix(b.ambient, a.ambient, w), a.ambient),
-      specular: p5.strandsTernary(computeMaterial, sketch.mix(b.specular, a.specular, w), a.specular),
-      emissive: p5.strandsTernary(computeMaterial, sketch.mix(b.emissive, a.emissive, w), a.emissive),
-      shininess: p5.strandsTernary(computeMaterial, sketch.mix(b.shininess, a.shininess, w), a.shininess),
-      metalness: p5.strandsTernary(computeMaterial, sketch.mix(b.metalness, a.metalness, w), a.metalness),
-    });
+  const setOp = (state, op, opK = 0) =>
+    withState(state, { op: p5.strandsNode(OPS[op]), opK: p5.strandsNode(opK) });
 
-    const existingMat = (existing) => ({
-      color: existing.color,
-      ambient: existing.ambient,
-      specular: existing.specular,
-      emissive: existing.emissive,
-      shininess: existing.shininess,
-      metalness: existing.metalness,
-    });
+  const scaleLipschitz = (state, lipschitz) =>
+    withState(state, { lip: state.scoped.lip.mult(lipschitz) });
 
-    const combine = (existing, d, shapeMat) => {
-      const { op, opK } = top();
-      if (existing === null) return { dist: d, ...shapeMat };
-
-      if (op === 'union') {
-        const w = sketch.step(existing.dist, d); // 1 when existing wins
-        return { dist: sketch.min(existing.dist, d), ...mixMat(existing, shapeMat, w) };
+  fn.createSDF = p5.registerStrandsState('createSDF', {
+    init(hook, makeColor, config) {
+      Object.assign(config, { hook, makeColor, computeMaterial: hook.computeMaterial });
+      const zero = p5.strandsNode(0.0);
+      const scoped = {
+        point: hook.point,
+        scale: p5.strandsNode(1.0),
+        op: p5.strandsNode(OPS.union),
+        opK: zero,
+        lip: p5.strandsNode(1.0),
+        roundIn: zero,
+        roundOut: zero,
+        onion: zero,
+      };
+      const global = { dist: p5.strandsNode(1e10), has: zero };
+      for (const field of MATERIAL_FIELDS) {
+        scoped[field] = hook[field];
+        global[field] = hook[field];
       }
-      if (op === 'subtract') {
-        return { dist: sketch.max(existing.dist, d.mult(-1)), ...existingMat(existing) };
-      }
-      if (op === 'intersect') {
-        const w = sketch.step(d, existing.dist); // 1 when existing >= d (existing surface visible)
-        return { dist: sketch.max(existing.dist, d), ...mixMat(existing, shapeMat, w) };
-      }
-      if (op === 'smoothUnion') {
-        const h = sminH(existing.dist, d, opK);
-        const k = p5.strandsNode(opK);
-        return {
-          dist: sketch.mix(d, existing.dist, h).sub(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
-          ...mixMat(existing, shapeMat, h),
-        };
-      }
-      if (op === 'smoothSubtract') {
-        const neg_d = d.mult(p5.strandsNode(-1.0));
-        const h = sminH(existing.dist, neg_d, opK);
-        const k = p5.strandsNode(opK);
-        return {
-          dist: sketch.mix(existing.dist, neg_d, h).add(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
-          ...existingMat(existing),
-        };
-      }
-      if (op === 'smoothIntersect') {
-        const h = sminH(existing.dist, d, opK);
-        const k = p5.strandsNode(opK);
-        return {
-          dist: sketch.mix(existing.dist, d, h).add(k.mult(h).mult(p5.strandsNode(1.0).sub(h))),
-          ...mixMat(existing, shapeMat, p5.strandsNode(1.0).sub(h)),
-        };
-      }
-      return { dist: sketch.min(existing.dist, d), ...existingMat(existing) };
-    };
-
-    return {
-      push() {
-        const { point, op, opK, mat, scale, mod } = top();
-        stack.push({ point, op, opK, mat: { ...mat }, scale, mod });
+      return { config, state: { scoped, global } };
+    },
+    update: {
+      push(state) {
+        this.pushStrandsState();
+        return withState(state);
       },
-      pop() {
-        if (stack.length > 1) stack.pop();
+      // Restoring happens inside pop, so the stale snapshot has to be replaced
+      pop(state, config) {
+        this.popStrandsState();
+        return { scoped: config.helper._scopedState(), global: state.global };
       },
 
       ////////////////////////
       // TRANSFORMS
       ////////////////////////
-      translate(x, y, z) {
-        top().point = top().point.sub(sketch.vec3(x, y, z));
+      translate(state, config, x, y, z) {
+        return withState(state, { point: state.scoped.point.sub(this.vec3(x, y, z)) });
       },
-      scale(s) {
-        top().point = top().point.div(p5.strandsNode(s));
-        top().scale = top().scale * s;
+      scale(state, config, s) {
+        const sNode = p5.strandsNode(s);
+        return withState(state, {
+          point: state.scoped.point.div(sNode),
+          scale: state.scoped.scale.mult(sNode),
+        });
       },
-      mirror(axis) {
-        const p = top().point;
-        if (axis === 'x') top().point = sketch.vec3(sketch.abs(p.x), p.y, p.z);
-        else if (axis === 'y') top().point = sketch.vec3(p.x, sketch.abs(p.y), p.z);
-        else if (axis === 'z') top().point = sketch.vec3(p.x, p.y, sketch.abs(p.z));
+      mirror(state, config, axis) {
+        const p = state.scoped.point;
+        if (axis === 'x') return withState(state, { point: this.vec3(this.abs(p.x), p.y, p.z) });
+        if (axis === 'y') return withState(state, { point: this.vec3(p.x, this.abs(p.y), p.z) });
+        if (axis === 'z') return withState(state, { point: this.vec3(p.x, p.y, this.abs(p.z)) });
+        return withState(state);
       },
-      elongate(hx, hy, hz) {
-        const p = top().point;
-        top().point = p.sub(sketch.clamp(p, sketch.vec3(-hx, -hy, -hz), sketch.vec3(hx, hy, hz)));
+      elongate(state, config, hx, hy, hz) {
+        const p = state.scoped.point;
+        return withState(state, {
+          point: p.sub(this.clamp(p, this.vec3(-hx, -hy, -hz), this.vec3(hx, hy, hz))),
+        });
       },
-      twist(k) {
-        const p = top().point;
+      twist(state, config, k) {
+        const p = state.scoped.point;
         const kNode = p5.strandsNode(k);
         const angle = kNode.mult(p.y);
-        const c = sketch.cos(angle);
-        const s = sketch.sin(angle);
-        top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.z)), p.y, s.mult(p.x).add(c.mult(p.z)));
-        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
-        const lipschitz = p5.strandsNode(1.0).add(sketch.abs(kNode).mult(xzLen));
-        const prev = top().mod;
-        top().mod = d => {
-          const corrected = d.div(lipschitz);
-          return prev ? prev(corrected) : corrected;
-        };
+        const c = this.cos(angle);
+        const s = this.sin(angle);
+        const xzLen = this.length(this.vec2(p.x, p.z));
+        const next = withState(state, {
+          point: this.vec3(c.mult(p.x).sub(s.mult(p.z)), p.y, s.mult(p.x).add(c.mult(p.z))),
+        });
+        return scaleLipschitz(next, p5.strandsNode(1.0).add(this.abs(kNode).mult(xzLen)));
       },
-      bend(k) {
-        const p = top().point;
+      bend(state, config, k) {
+        const p = state.scoped.point;
         const kNode = p5.strandsNode(k);
         const angle = kNode.mult(p.x);
-        const c = sketch.cos(angle);
-        const s = sketch.sin(angle);
-        top().point = sketch.vec3(c.mult(p.x).sub(s.mult(p.y)), s.mult(p.x).add(c.mult(p.y)), p.z);
-        const lipschitz = p5.strandsNode(1.0).add(sketch.abs(kNode).mult(sketch.length(p)));
-        const prev = top().mod;
-        top().mod = d => {
-          const corrected = d.div(lipschitz);
-          return prev ? prev(corrected) : corrected;
-        };
+        const c = this.cos(angle);
+        const s = this.sin(angle);
+        const next = withState(state, {
+          point: this.vec3(c.mult(p.x).sub(s.mult(p.y)), s.mult(p.x).add(c.mult(p.y)), p.z),
+        });
+        return scaleLipschitz(next, p5.strandsNode(1.0).add(this.abs(kNode).mult(this.length(p))));
       },
 
-      rotateX(a) {
-        const p = top().point;
-        const c = sketch.cos(a);
-        const s = sketch.sin(a);
-        top().point = sketch.vec3(p.x, p.y.mult(c).add(p.z.mult(s)), p.z.mult(c).sub(p.y.mult(s)));
+      rotateX(state, config, a) {
+        const p = state.scoped.point;
+        const c = this.cos(a);
+        const s = this.sin(a);
+        return withState(state, {
+          point: this.vec3(p.x, p.y.mult(c).add(p.z.mult(s)), p.z.mult(c).sub(p.y.mult(s))),
+        });
       },
-      rotateY(a) {
-        const p = top().point;
-        const c = sketch.cos(a);
-        const s = sketch.sin(a);
-        top().point = sketch.vec3(p.x.mult(c).sub(p.z.mult(s)), p.y, p.x.mult(s).add(p.z.mult(c)));
+      rotateY(state, config, a) {
+        const p = state.scoped.point;
+        const c = this.cos(a);
+        const s = this.sin(a);
+        return withState(state, {
+          point: this.vec3(p.x.mult(c).sub(p.z.mult(s)), p.y, p.x.mult(s).add(p.z.mult(c))),
+        });
       },
-      rotateZ(a) {
-        const p = top().point;
-        const c = sketch.cos(a);
-        const s = sketch.sin(a);
-        top().point = sketch.vec3(p.x.mult(c).add(p.y.mult(s)), p.y.mult(c).sub(p.x.mult(s)), p.z);
+      rotateZ(state, config, a) {
+        const p = state.scoped.point;
+        const c = this.cos(a);
+        const s = this.sin(a);
+        return withState(state, {
+          point: this.vec3(p.x.mult(c).add(p.y.mult(s)), p.y.mult(c).sub(p.x.mult(s)), p.z),
+        });
       },
 
       ////////////////////////
       // BOOLEAN OPS
       ////////////////////////
-      union() {
-        top().op = 'union';
-        top().opK = 0;
-      },
-      subtract() {
-        top().op = 'subtract';
-        top().opK = 0;
-      },
-      intersect() {
-        top().op = 'intersect';
-        top().opK = 0;
-      },
-      smoothUnion(k) {
-        top().op = 'smoothUnion';
-        top().opK = k;
-      },
-      smoothSubtract(k) {
-        top().op = 'smoothSubtract';
-        top().opK = k;
-      },
-      smoothIntersect(k) {
-        top().op = 'smoothIntersect';
-        top().opK = k;
-      },
+      union: state => setOp(state, 'union'),
+      subtract: state => setOp(state, 'subtract'),
+      intersect: state => setOp(state, 'intersect'),
+      smoothUnion: (state, config, k) => setOp(state, 'smoothUnion', k),
+      smoothSubtract: (state, config, k) => setOp(state, 'smoothSubtract', k),
+      smoothIntersect: (state, config, k) => setOp(state, 'smoothIntersect', k),
 
       ////////////////////////
       // DISTANCE MODIFIERS
       ////////////////////////
-      round(r) {
-        const prev = top().mod;
-        top().mod = d => (prev ? prev(d) : d).sub(p5.strandsNode(r));
+      round(state, config, r) {
+        const { onion, roundIn, roundOut } = state.scoped;
+        const rNode = p5.strandsNode(r);
+        return withState(state, {
+          roundIn: roundIn.add(p5.strandsNode(1.0).sub(onion).mult(rNode)),
+          roundOut: roundOut.add(onion.mult(rNode)),
+        });
       },
-      onion(t) {
-        const prev = top().mod;
-        top().mod = d => sketch.abs(prev ? prev(d) : d).sub(p5.strandsNode(t));
+      onion(state, config, t) {
+        return withState(state, {
+          roundOut: state.scoped.roundOut.add(p5.strandsNode(t)),
+          onion: p5.strandsNode(1.0),
+        });
       },
 
       ////////////////////////
       // MATERIALS
       ////////////////////////
-      fill(...args) {
-        const c = sketch.color(...args);
-        top().mat.color = c;
-        top().mat.ambient = sketch.vec3(c.r, c.g, c.b);
+      fill(state, config, ...args) {
+        // The hook's own `color` property shadows the sketch's during a global build
+        const c = config.makeColor.call(this, ...args);
+        return withState(state, { color: c, ambient: this.vec3(c.r, c.g, c.b) });
       },
-      ambient(r, g, b) {
-        top().mat.ambient = sketch.vec3(r / 255, g / 255, b / 255);
+      ambient(state, config, r, g, b) {
+        return withState(state, { ambient: this.vec3(r / 255, g / 255, b / 255) });
       },
-      specular(r, g, b) {
-        top().mat.specular = sketch.vec3(r / 255, g / 255, b / 255);
+      specular(state, config, r, g, b) {
+        return withState(state, { specular: this.vec3(r / 255, g / 255, b / 255) });
       },
-      emissive(r, g, b) {
-        top().mat.emissive = sketch.vec3(r / 255, g / 255, b / 255);
+      emissive(state, config, r, g, b) {
+        return withState(state, { emissive: this.vec3(r / 255, g / 255, b / 255) });
       },
-      shininess(v) {
-        top().mat.shininess = p5.strandsNode(v);
+      shininess(state, config, v) {
+        return withState(state, { shininess: p5.strandsNode(v) });
       },
-      metalness(v) {
-        top().mat.metalness = p5.strandsNode(v);
-      },
-
-      times(n) {
-        const self = this;
-        return {
-          each(fn) {
-            for (let i = 0; i < n; i++) fn(i);
-          },
-        };
-      },
-
-      _addShape(d) {
-        const frame = top();
-        if (frame.scale !== 1) d = d.mult(p5.strandsNode(frame.scale));
-        if (frame.mod !== null) d = frame.mod(d);
-        const m = frame.mat;
-        result = combine(result, d, {
-          color: m.color ?? defaults.color,
-          ambient: m.ambient ?? defaults.ambient,
-          specular: m.specular ?? defaults.specular,
-          emissive: m.emissive ?? defaults.emissive,
-          shininess: m.shininess ?? defaults.shininess,
-          metalness: m.metalness ?? defaults.metalness,
-        });
+      metalness(state, config, v) {
+        return withState(state, { metalness: p5.strandsNode(v) });
       },
 
       ////////////////////////
       // PRIMITIVES
       ////////////////////////
-      sphere(r) {
-        this._addShape(sketch.length(top().point).sub(r));
+      sphere(state, config, r) {
+        return addShape(this, state, config, this.length(state.scoped.point).sub(r));
       },
-      box(width, height, depth) {
-        if (height === undefined) height = width;
-        if (depth === undefined) depth = width;
-        const p = top().point;
-        const b = sketch.vec3(
+      box(state, config, width, height = width, depth = width) {
+        const p = state.scoped.point;
+        const b = this.vec3(
           p5.strandsNode(width).mult(0.5),
           p5.strandsNode(height).mult(0.5),
           p5.strandsNode(depth).mult(0.5)
         );
-        const q = sketch.abs(p).sub(b);
-        this._addShape(
-          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0))
+        const q = this.abs(p).sub(b);
+        return addShape(
+          this, state, config,
+          this.length(this.max(q, 0.0)).add(this.min(this.max(q.x, this.max(q.y, q.z)), 0.0))
         );
       },
-      roundBox(width, height, depth, r) {
-        if (height === undefined) height = width;
-        if (depth === undefined) depth = width;
-        const p = top().point;
+      roundBox(state, config, width, height = width, depth = width, r) {
+        const p = state.scoped.point;
         const rNode = p5.strandsNode(r);
-        const b = sketch.vec3(
+        const b = this.vec3(
           p5.strandsNode(width).mult(0.5).sub(rNode),
           p5.strandsNode(height).mult(0.5).sub(rNode),
           p5.strandsNode(depth).mult(0.5).sub(rNode)
         );
-        const q = sketch.abs(p).sub(b);
-        this._addShape(
-          sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0)).sub(rNode)
+        const q = this.abs(p).sub(b);
+        return addShape(
+          this, state, config,
+          this.length(this.max(q, 0.0)).add(this.min(this.max(q.x, this.max(q.y, q.z)), 0.0)).sub(rNode)
         );
       },
-      boxFrame(width, height, depth, e) {
-        if (height === undefined) height = width;
-        if (depth === undefined) depth = width;
-        const pv = sketch.abs(top().point).sub(sketch.vec3(
+      boxFrame(state, config, width, height = width, depth = width, e) {
+        const pv = this.abs(state.scoped.point).sub(this.vec3(
           p5.strandsNode(width).mult(0.5),
           p5.strandsNode(height).mult(0.5),
           p5.strandsNode(depth).mult(0.5)
         ));
         const ev = p5.strandsNode(e);
-        const q = sketch.abs(pv.add(ev)).sub(ev);
-        const d1 = sketch.length(sketch.max(sketch.vec3(pv.x, q.y, q.z), 0.0)).add(sketch.min(sketch.max(pv.x, sketch.max(q.y, q.z)), 0.0));
-        const d2 = sketch.length(sketch.max(sketch.vec3(q.x, pv.y, q.z), 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(pv.y, q.z)), 0.0));
-        const d3 = sketch.length(sketch.max(sketch.vec3(q.x, q.y, pv.z), 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, pv.z)), 0.0));
-        this._addShape(sketch.min(sketch.min(d1, d2), d3));
+        const q = this.abs(pv.add(ev)).sub(ev);
+        const d1 = this.length(this.max(this.vec3(pv.x, q.y, q.z), 0.0)).add(this.min(this.max(pv.x, this.max(q.y, q.z)), 0.0));
+        const d2 = this.length(this.max(this.vec3(q.x, pv.y, q.z), 0.0)).add(this.min(this.max(q.x, this.max(pv.y, q.z)), 0.0));
+        const d3 = this.length(this.max(this.vec3(q.x, q.y, pv.z), 0.0)).add(this.min(this.max(q.x, this.max(q.y, pv.z)), 0.0));
+        return addShape(this, state, config, this.min(this.min(d1, d2), d3));
       },
-      cylinder(radius, height) {
-        const p = top().point;
-        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
-        const d2 = sketch.vec2(
+      cylinder(state, config, radius, height) {
+        const p = state.scoped.point;
+        const xzLen = this.length(this.vec2(p.x, p.z));
+        const d2 = this.vec2(
           xzLen.sub(p5.strandsNode(radius)),
-          sketch.abs(p.y).sub(p5.strandsNode(height).mult(0.5))
+          this.abs(p.y).sub(p5.strandsNode(height).mult(0.5))
         );
-        this._addShape(sketch.min(sketch.max(d2.x, d2.y), 0.0).add(sketch.length(sketch.max(d2, 0.0))));
+        return addShape(
+          this, state, config,
+          this.min(this.max(d2.x, d2.y), 0.0).add(this.length(this.max(d2, 0.0)))
+        );
       },
-      capsule(h, r) {
-        const p = top().point;
-        const py = p.y.sub(sketch.clamp(p.y, 0.0, h));
-        this._addShape(sketch.length(sketch.vec3(p.x, py, p.z)).sub(p5.strandsNode(r)));
+      capsule(state, config, h, r) {
+        const p = state.scoped.point;
+        const py = p.y.sub(this.clamp(p.y, 0.0, h));
+        return addShape(this, state, config, this.length(this.vec3(p.x, py, p.z)).sub(p5.strandsNode(r)));
       },
-      torus(radius, tubeRadius) {
-        const p = top().point;
-        const xzLen = sketch.length(sketch.vec2(p.x, p.z));
-        this._addShape(sketch.length(sketch.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius));
+      torus(state, config, radius, tubeRadius) {
+        const p = state.scoped.point;
+        const xzLen = this.length(this.vec2(p.x, p.z));
+        return addShape(
+          this, state, config,
+          this.length(this.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius)
+        );
       },
-      plane(nx, ny, nz, h) {
-        const p = top().point;
-        this._addShape(
+      plane(state, config, nx, ny, nz, h) {
+        const p = state.scoped.point;
+        return addShape(
+          this, state, config,
           p5.strandsNode(nx).mult(p.x).add(p5.strandsNode(ny).mult(p.y)).add(p5.strandsNode(nz).mult(p.z)).add(p5.strandsNode(h))
         );
       },
-      ellipsoid(rx, ry, rz) {
-        const p = top().point;
-        const r = sketch.vec3(rx, ry, rz);
-        const k0 = sketch.length(p.div(r));
-        const k1 = sketch.length(p.div(r.mult(r)));
-        this._addShape(k0.mult(k0.sub(p5.strandsNode(1.0))).div(k1));
+      ellipsoid(state, config, rx, ry, rz) {
+        const p = state.scoped.point;
+        const r = this.vec3(rx, ry, rz);
+        const k0 = this.length(p.div(r));
+        const k1 = this.length(p.div(r.mult(r)));
+        return addShape(this, state, config, k0.mult(k0.sub(p5.strandsNode(1.0))).div(k1));
       },
-      octahedron(s) {
-        const p = sketch.abs(top().point);
-        this._addShape(p.x.add(p.y).add(p.z).sub(p5.strandsNode(s)).mult(p5.strandsNode(0.57735027)));
+      octahedron(state, config, s) {
+        const p = this.abs(state.scoped.point);
+        return addShape(
+          this, state, config,
+          p.x.add(p.y).add(p.z).sub(p5.strandsNode(s)).mult(p5.strandsNode(0.57735027))
+        );
       },
+    },
+    read: {
+      _scopedState: state => state.scoped,
 
-      apply() {
-        if (result === null) return;
-        hook.dist = result.dist;
-        hook.color = result.color;
-        hook.ambient = result.ambient;
-        hook.specular = result.specular;
-        hook.emissive = result.emissive;
-        hook.shininess = result.shininess;
-        hook.metalness = result.metalness;
+      apply(state, config) {
+        const { hook } = config;
+        hook.dist = state.global.dist;
+        for (const field of MATERIAL_FIELDS) hook[field] = state.global[field];
       },
-    };
+    },
+  });
+
+  // Helpers need a reference to themselves so pop can read back restored state
+  const createSDFHelper = fn.createSDF;
+  fn.createSDF = function(hook, makeColor = this.color) {
+    const config = {};
+    const helper = createSDFHelper.call(this, hook, makeColor, config);
+    config.helper = helper;
+    return helper;
   };
+
 
   fn.buildSDF = function(callback) {
     const sketch = this;
-    const shader = this.baseSDFShader().modify(callback);
+    const makeColor = sketch.color;
+    const shader = this.baseSDFShader().modify(callback, {}, {
+      hook: 'sdfScene',
+      globalInstance() {
+        return this.createSDF(this.sdfScene, makeColor);
+      },
+    });
 
     return {
       shader,
