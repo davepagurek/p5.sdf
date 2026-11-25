@@ -16,13 +16,13 @@ function sdf(p5, fn) {
   // work in the constructor
   const fragPrefix = `
     struct SDFResult {
-      float dist;
-      vec4 color;
-      vec3 ambient;
-      vec3 specular;
-      vec3 emissive;
-      float shininess;
-      float metalness;
+      float sdfDist;
+      vec4 sdfColor;
+      vec3 sdfAmbient;
+      vec3 sdfSpecular;
+      vec3 sdfEmissive;
+      float sdfShininess;
+      float sdfMetalness;
     };
     uniform mat4 uProjectionMatrix;
     uniform mat3 uNormalMatrix;
@@ -54,8 +54,8 @@ function sdf(p5, fn) {
             ...base.hooks.vertex,
           },
           fragment: {
-            'SDFResult sdfScene': `(SDFResult result, vec3 point, bool computeMaterial) {
-              result.dist = length(point) - 1.0;
+            'SDFResult sdfScene': `(SDFResult result, vec3 sdfPoint, bool sdfComputeMaterial) {
+              result.sdfDist = length(sdfPoint) - 1.0;
               return result;
             }`,
             ...base.hooks.fragment,
@@ -69,20 +69,20 @@ function sdf(p5, fn) {
               vec3 rayOrigin = vViewPosition;
 
               SDFResult defaultResult;
-              defaultResult.color = inputs.color;
-              defaultResult.ambient = inputs.ambientMaterial;
-              defaultResult.specular = inputs.specularMaterial;
-              defaultResult.emissive = inputs.emissiveMaterial;
-              defaultResult.shininess = inputs.shininess;
-              defaultResult.metalness = inputs.metalness;
+              defaultResult.sdfColor = inputs.color;
+              defaultResult.sdfAmbient = inputs.ambientMaterial;
+              defaultResult.sdfSpecular = inputs.specularMaterial;
+              defaultResult.sdfEmissive = inputs.emissiveMaterial;
+              defaultResult.sdfShininess = inputs.shininess;
+              defaultResult.sdfMetalness = inputs.metalness;
 
               float t = 0.0;
               bool hit = false;
               for (int i = 0; i < 256; i++) {
                 vec3 viewPos = rayOrigin + t * rayDir;
                 vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
-                defaultResult.dist = 1e10;
-                float d = HOOK_sdfScene(defaultResult, sdfPos, false).dist;
+                defaultResult.sdfDist = 1e10;
+                float d = HOOK_sdfScene(defaultResult, sdfPos, false).sdfDist;
                 if (d < 0.001) { hit = true; break; }
                 if (t > uSDFMaxDist) break;
                 t += d;
@@ -93,31 +93,31 @@ function sdf(p5, fn) {
               vec3 hitViewPos = rayOrigin + t * rayDir;
               vec3 hitSdfPos = (uInverseModelViewMatrix * vec4(hitViewPos, 1.0)).xyz;
 
-              defaultResult.dist = 1e10;
+              defaultResult.sdfDist = 1e10;
               SDFResult hitResult = HOOK_sdfScene(defaultResult, hitSdfPos, true);
 
               float eps = 0.001;
               vec2 k = vec2(1.0, -1.0);
-              defaultResult.dist = 1e10;
+              defaultResult.sdfDist = 1e10;
               vec3 sdfNormal = normalize(
-                k.xyy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xyy, false).dist +
-                k.yyx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yyx, false).dist +
-                k.yxy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yxy, false).dist +
-                k.xxx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xxx, false).dist
+                k.xyy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xyy, false).sdfDist +
+                k.yyx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yyx, false).sdfDist +
+                k.yxy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yxy, false).sdfDist +
+                k.xxx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xxx, false).sdfDist
               );
 
               _sdfHitViewPos = hitViewPos;
               _sdfNormal = normalize(uNormalMatrix * sdfNormal);
-              _sdfShininess = hitResult.shininess;
-              _sdfMetalness = hitResult.metalness;
+              _sdfShininess = hitResult.sdfShininess;
+              _sdfMetalness = hitResult.sdfMetalness;
 
               inputs.normal = _sdfNormal;
-              inputs.color = hitResult.color;
-              inputs.shininess = hitResult.shininess;
-              inputs.metalness = hitResult.metalness;
-              inputs.ambientMaterial = hitResult.ambient;
-              inputs.specularMaterial = hitResult.specular;
-              inputs.emissiveMaterial = hitResult.emissive;
+              inputs.color = hitResult.sdfColor;
+              inputs.shininess = hitResult.sdfShininess;
+              inputs.metalness = hitResult.sdfMetalness;
+              inputs.ambientMaterial = hitResult.sdfAmbient;
+              inputs.specularMaterial = hitResult.sdfSpecular;
+              inputs.emissiveMaterial = hitResult.sdfEmissive;
 
               vec4 clipPos = uProjectionMatrix * vec4(hitViewPos, 1.0);
               gl_FragDepth = (clipPos.z / clipPos.w + 1.0) * 0.5;
@@ -218,6 +218,10 @@ function sdf(p5, fn) {
     sketch.clamp(node(0.5).add(node(0.5).mult(b.sub(a).div(k))), 0.0, 1.0);
 
   const MATERIAL_FIELDS = ['color', 'ambient', 'specular', 'emissive', 'shininess', 'metalness'];
+
+  // The hook's properties become globals for the length of a build, so its
+  // fields can't be named dist, color or point without hiding p5's own functions
+  const hookField = name => `sdf${name[0].toUpperCase()}${name.slice(1)}`;
 
   // The weight is how much of the existing material survives, which lets every
   // boolean op share one material mix
@@ -348,18 +352,18 @@ function sdf(p5, fn) {
       const config = {
         hook,
         instanceRef,
-        computeMaterial: hook.computeMaterial,
+        computeMaterial: hook.sdfComputeMaterial,
         constants: new Map(),
       };
       const defaults = {};
       for (const field of MATERIAL_FIELDS) {
-        defaults[field] = hook[field];
+        defaults[field] = hook[hookField(field)];
       }
       return {
         config,
         state: {
           scoped: {
-            point: hook.point,
+            point: hook.sdfPoint,
             distScale: constant(config, 1.0),
             op: constant(config, OP.union),
             opK: node(0.0),
@@ -568,11 +572,11 @@ function sdf(p5, fn) {
         return state.global;
       },
 
-      apply(state, config) {
+      _apply(state, config) {
         const { hook } = config;
-        hook.dist = state.global.dist;
+        hook.sdfDist = state.global.dist;
         for (const field of MATERIAL_FIELDS) {
-          hook[field] = state.global[field];
+          hook[hookField(field)] = state.global[field];
         }
       },
     },
@@ -586,15 +590,64 @@ function sdf(p5, fn) {
   // config, and read back out later. The addon instance doesn't exist until the
   // factory returns, so current is filled in afterwards. It is set once per
   // addon instance and never changes, so groups don't need to reset it
+  const isTransformMatrix = value =>
+    value?.isStrandsNode && value.typeInfo().baseType === 'mat';
+
+  // p5.strands has its own translate, scale, rotate, rotateX, rotateY, rotateZ,
+  // shearX and shearY that take a transform matrix as the first argument.
+  // Installing the addon instance globally hides them for the length of a
+  // build, so each of these names hands off to the strands version when it is
+  // given a matrix and uses the SDF version otherwise. That also means the
+  // methods above can call this.translate(identity, ...) and get the strands
+  // version, and the strands transform helpers stay usable inside a build
+  const SHARED_TRANSFORM_NAMES = [
+    'translate', 'scale', 'rotate', 'rotateX', 'rotateY', 'rotateZ', 'shearX', 'shearY',
+  ];
+
   fn.distanceFunction = function(hook) {
+    const sketch = this;
     const instanceRef = {};
-    instanceRef.current = createInstance.call(this, hook, instanceRef);
-    return instanceRef.current;
+    const instance = createInstance.call(sketch, hook, instanceRef);
+    instanceRef.current = instance;
+
+    for (const name of SHARED_TRANSFORM_NAMES) {
+      const strandsVersion = sketch[name];
+      const sdfVersion = instance[name];
+      instance[name] = function(...args) {
+        if (isTransformMatrix(args[0])) {
+          return strandsVersion.apply(sketch, args);
+        }
+        return sdfVersion.apply(this, args);
+      };
+    }
+    return instance;
   };
 
   fn.buildSDF = function(callback) {
     const sketch = this;
-    const shader = this.baseSDFShader().modify(callback);
+    let resultApplied = false;
+    // The callback goes straight to modify() because modify() re-evaluates its
+    // source, so a wrapper function would hide the user's code and the
+    // variables it closes over. Writing the result into the hook has to happen
+    // right before the hook ends, so the hook's end() is wrapped for this build
+    const shader = this.baseSDFShader().modify(callback, {}, {
+      hook: 'sdfScene',
+      globalInstance() {
+        const hook = this.sdfScene;
+        const instance = this.distanceFunction(hook);
+        const end = hook.end;
+        hook.end = function(...args) {
+          hook.end = end;
+          instance._apply();
+          resultApplied = true;
+          return end.apply(this, args);
+        };
+        return instance;
+      },
+    });
+    if (!resultApplied) {
+      throw new Error('p5.sdf could not write the distance function into the shader. This version of p5 may end hooks differently than p5.sdf expects.');
+    }
 
     return {
       shader,
