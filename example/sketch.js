@@ -72,6 +72,7 @@ function setup() {
   sdfs.push(buildSDF(function() {
     sdfScene.begin()
     const sdf = distanceFunction(sdfScene)
+    sdf.shininess(3)
     sdf.octahedron(80)
     sdf.apply()
     sdfScene.end()
