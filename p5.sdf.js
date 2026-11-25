@@ -170,7 +170,7 @@ function sdf(p5, fn) {
   };
   const constantValue = (config, n) => config.constants.get(n.id);
 
-  // registerStrandsState splits a helper's state into scoped fields, which
+  // registerStrandsState splits an addon instance's state into scoped fields, which
   // push() and pop() save and restore, and global fields, which keep their
   // values across pop(). Update methods must return both groups, so this applies
   // a patch to the scoped fields only and passes the global fields through
@@ -307,10 +307,47 @@ function sdf(p5, fn) {
     return sketch.vec3(c.r, c.g, c.b);
   };
 
-  fn.distanceFunction = p5.registerStrandsState('distanceFunction', {
-    init(hook) {
+  // A group is a push() and pop() pair that also scopes a filter on distance.
+  // Shapes inside start from an empty result so the filter only sees them, then
+  // the filtered result is merged into the outer one with the boolean op that
+  // was in effect when the group started. The body changes state through the
+  // addon instance while it runs, so the state returned here is built from what
+  // the body left behind instead of from the snapshot this method was called
+  // with.
+  // The addon instance is the object distanceFunction() returns (the sdf in
+  // sdf.sphere(10)), and its methods are the ones defined below. State methods
+  // only receive (state, config, ...args) and not the addon instance, so it
+  // comes from config.instanceRef, which fn.distanceFunction fills in
+  const group = (filter) => function(state, config, amount, body) {
+    const instance = config.instanceRef.current;
+    const { op, opK } = state.scoped;
+    this.push();
+    instance._beginGroup();
+    body();
+    const inner = instance._globalState();
+    this.pop();
+
+    if (constantValue(config, inner.hasShape) === 0) {
+      return { scoped: state.scoped, global: state.global };
+    }
+    const groupAsShape = { distScale: constant(config, 1.0), op, opK };
+    for (const field of MATERIAL_FIELDS) {
+      groupAsShape[field] = inner[field];
+    }
+    const merged = addShape(
+      this,
+      { scoped: groupAsShape, global: state.global },
+      config,
+      filter(this, inner.dist, amount)
+    );
+    return { scoped: state.scoped, global: merged.global };
+  };
+
+  const createInstance = p5.registerStrandsState('distanceFunction', {
+    init(hook, instanceRef) {
       const config = {
         hook,
+        instanceRef,
         computeMaterial: hook.computeMaterial,
         constants: new Map(),
       };
@@ -338,6 +375,17 @@ function sdf(p5, fn) {
     },
 
     update: {
+      _beginGroup(state, config) {
+        return {
+          scoped: state.scoped,
+          global: {
+            ...state.global,
+            dist: constant(config, 1e10),
+            hasShape: constant(config, 0.0),
+          },
+        };
+      },
+
       ////////////////////////
       // TRANSFORMS
       ////////////////////////
@@ -443,6 +491,12 @@ function sdf(p5, fn) {
       },
 
       ////////////////////////
+      // DISTANCE MODIFIERS
+      ////////////////////////
+      rounded: group((sketch, dist, radius) => dist.sub(node(radius))),
+      onion: group((sketch, dist, thickness) => sketch.abs(dist).sub(node(thickness))),
+
+      ////////////////////////
       // PRIMITIVES
       ////////////////////////
       sphere: shape((sketch, p, r) => sketch.length(p).sub(r)),
@@ -510,6 +564,10 @@ function sdf(p5, fn) {
     },
 
     read: {
+      _globalState(state) {
+        return state.global;
+      },
+
       apply(state, config) {
         const { hook } = config;
         hook.dist = state.global.dist;
@@ -519,6 +577,20 @@ function sdf(p5, fn) {
       },
     },
   });
+
+  // The addon instance is the object this function returns (the sdf in
+  // const sdf = distanceFunction(sdfScene)). registerStrandsState hands the
+  // arguments it is called with to init, and hands the config that init returns
+  // to every update and read method. That is how the finished addon instance
+  // reaches the group methods: it is passed in as instanceRef, stored on the
+  // config, and read back out later. The addon instance doesn't exist until the
+  // factory returns, so current is filled in afterwards. It is set once per
+  // addon instance and never changes, so groups don't need to reset it
+  fn.distanceFunction = function(hook) {
+    const instanceRef = {};
+    instanceRef.current = createInstance.call(this, hook, instanceRef);
+    return instanceRef.current;
+  };
 
   fn.buildSDF = function(callback) {
     const sketch = this;
