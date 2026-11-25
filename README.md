@@ -4,6 +4,20 @@
 
 This library tries to make it as easy as possible to use these techniques inside of p5.js alongside its traditional shape drawing tools. Create an SDF shape using `push` and `pop` and transformations like `translate`, `rotate`, and `scale` like you would with normal geometry, and get back an object you can call `.draw()` on to render it into a scene. It will work with your usual p5 camera and lighting controls!
 
+## Adding the library
+
+Add it via a script tag:
+
+```html
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/p5.sdf@0.0.1/p5.sdf.js"></script>
+```
+
+Or for OpenProcessing, you can add it directly via CDN:
+
+```
+https://cdn.jsdelivr.net/npm/p5.sdf@0.0.1/p5.sdf.js
+```
+
 ## Reference
 
 ### Structure
