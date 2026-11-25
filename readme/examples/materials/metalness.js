@@ -20,5 +20,5 @@ function draw() {
   imageLight(environment)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }

@@ -19,5 +19,5 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }

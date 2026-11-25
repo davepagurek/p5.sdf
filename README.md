@@ -1,8 +1,199 @@
 # p5.sdf
 
+*Signed distance functions* (SDFs) are a way of representing shapes. Normally, p5 uses triangle meshes for all its 3D shapes. However, this is not always the most expressive way to construct shapes, and some operations like topology changes (imagine some parts of a shape smoothly globbing together) are incredibly difficult to represent that way. An SDF is just a big function that you can evaluate at any point in space to find out how far you are from the surface, so topology changes aren't especially hard, and operations like smooth unions can make it easier to create natural-looking shapes. You render an SDF by raymarching into the scene, advancing the ray until the distance to the surface is effectively zero. <<a href="https://iquilezles.org/articles/distfunctions/">Inigo Quilez has a reference of SDF functions</a> (and a number of other blog posts about it, and a number of youtube videos; he's *the* resource for this, check him out!)
+
+This library tries to make it as easy as possible to use these techniques inside of p5.js alongside its traditional shape drawing tools. Create an SDF shape using `push` and `pop` and transformations like `translate`, `rotate`, and `scale` like you would with normal geometry, and get back an object you can call `.draw()` on to render it into a scene. It will work with your usual p5 camera and lighting controls!
+
 ## Reference
 
+### Structure
+
+Use this addon by calling `buildSDF` in `setup`. The result is an SDF object that you can now use in `draw` by calling its `.draw()` method.
+
+#### buildSDF
+
+<!-- p5.sdf example: buildSDF -->
+```
+buildSDF(callback)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    smoothUnion(20)
+    sphere(60)
+    push()
+    translate(50, 0, 0)
+    sphere(40)
+    pop()
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/structure/buildSDF.png" width="200" alt="buildSDF example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: buildSDF -->
+
+#### draw
+
+<!-- p5.sdf example: draw -->
+```
+draw([radius=200])
+draw(boundsCallback)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(255, 120, 60)
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/structure/draw.png" width="200" alt="draw example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: draw -->
+
+By default, SDFs are raymarched with in a sphere with a radius of 200. You can pass in your own bounding shape function if you want to use something else that is maybe a tighter fit to your SDF, such as a bounding box.
+
+<!-- p5.sdf example: draw.boundingShape -->
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(255, 120, 60)
+    box(120, 60, 60)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  // Covers the shape with a box instead of a sphere
+  shape.draw(() => box(160, 100, 100))
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/structure/draw.boundingShape.png" width="200" alt="draw.boundingShape example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: draw.boundingShape -->
+
+...or, you can pass in a number to use a bounding sphere at that radius.
+
+<!-- p5.sdf example: draw.radius -->
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(255, 120, 60)
+    sphere(50)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+
+  push()
+  translate(-60, 0, 0)
+  shape.draw(100)
+  pop()
+
+  push()
+  translate(60, 0, 0)
+  noStroke()
+  fill(80, 160, 255)
+  sphere(50)
+  pop()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/structure/draw.radius.png" width="200" alt="draw.radius example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: draw.radius -->
+
 ### Primitives
+
+Within `buildSDF`, you have a number of primitive shapes that you can use and combine. Many mirror existing p5 geometry, but there are also a few more.
 
 #### sphere
 
@@ -32,7 +223,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -74,7 +265,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -89,6 +280,8 @@ function draw() {
 <!-- /p5.sdf example: box -->
 
 #### roundBox
+
+While there is a more general `rounded()` helper in the Modifiers section below, that one works by inflating a shape by a given radius. That's what's necessary to make a fully general rounding mechanism, but for a rounded box specifically, we can round its corners without that general inflation happening, where the width/height/depth you pass in is what you get as output, just with the corners sanded off.
 
 <!-- p5.sdf example: roundBox -->
 ```
@@ -116,7 +309,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -158,7 +351,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -200,7 +393,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -243,7 +436,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -285,7 +478,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -329,7 +522,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -371,7 +564,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -413,7 +606,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -428,6 +621,8 @@ function draw() {
 <!-- /p5.sdf example: octahedron -->
 
 ### Transformations
+
+These are generally the same as in regular p5! But there are a few extra additions that are unique to SDFs, such as mirroring the space or applying twists or other warps.
 
 #### translate
 
@@ -460,7 +655,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -505,7 +700,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -548,7 +743,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -591,7 +786,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -634,7 +829,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -677,7 +872,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -720,7 +915,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -763,7 +958,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -808,7 +1003,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -823,6 +1018,8 @@ function draw() {
 <!-- /p5.sdf example: mirror -->
 
 #### elongate
+
+This works kind of like 9-slice-scaling in 2D. It cuts up space along the x, y, and z axes, and then pushes apart the ends by the distances you provide. The pieces that get moved apart stay connected, essentially using them just as corners.
 
 <!-- p5.sdf example: elongate -->
 ```
@@ -851,7 +1048,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -866,6 +1063,8 @@ function draw() {
 <!-- /p5.sdf example: elongate -->
 
 #### twist
+
+Twists about the y axis (vertical). To get other axes, rotate first, twist, then un-rotate.
 
 <!-- p5.sdf example: twist -->
 ```
@@ -894,7 +1093,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -909,6 +1108,8 @@ function draw() {
 <!-- /p5.sdf example: twist -->
 
 #### bend
+
+Bends about the z axis (into and out of the screen). To get other axes, rotate first, bend, then un-rotate.
 
 <!-- p5.sdf example: bend -->
 ```
@@ -938,7 +1139,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -953,6 +1154,8 @@ function draw() {
 <!-- /p5.sdf example: bend -->
 
 ### Materials
+
+p5 material modifiers work here too! (Notable exception is `texture()`. I still need to figure out how to support that.)
 
 #### fill
 
@@ -985,7 +1188,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1030,7 +1233,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1077,7 +1280,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1123,7 +1326,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1170,7 +1373,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1218,7 +1421,7 @@ function draw() {
   imageLight(environment)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1234,7 +1437,11 @@ function draw() {
 
 ### Modifiers
 
+These are kind of like geometry filters that you can run on shapes. They take in a callback function, allowing you to apply them to just the shapes drawn in the callback. The callback has an implicit `push` and `pop` around it so that state changes in the callback don't leak out.
+
 #### rounded
+
+This rounds corners by inflating the shape by a given radius. (To get a rounded box by sanding down corners rather than inflating, use `roundBox`.)
 
 <!-- p5.sdf example: rounded -->
 ```
@@ -1264,7 +1471,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1279,6 +1486,8 @@ function draw() {
 <!-- /p5.sdf example: rounded -->
 
 #### onion
+
+This modifier turns a solid shape into a hollow shell with a given thickness.
 
 <!-- p5.sdf example: onion -->
 ```
@@ -1310,9 +1519,11 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
+
+Try calling it multiple times to make layers! Do it for Shrek!!
 
 </td>
 <td>
@@ -1324,7 +1535,55 @@ function draw() {
 </table>
 <!-- /p5.sdf example: onion -->
 
+<!-- p5.sdf example: onion.layers -->
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    onion(2, () => {
+      onion(6, () => {
+        onion(14, () => {
+          sphere(90)
+        })
+      })
+    })
+    intersect()
+    plane(0, 0, 1, 0)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/modifiers/onion.layers.png" width="200" alt="onion.layers example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: onion.layers -->
+
 ### Operations
+
+You can combine multiple shapes into one SDF using different operations. Once you've set an operation, subsequent shapes that you add will be merged in using it. The default operation is `union`, which just shows all the things, kind of like just drawing stuff to the canvas normally in p5. But the other ones are unique to SDFs!
+
+There are your standard boolean operators, but there are also `smooth` versions. Try using those and changing the blend amount! It's one of the main draws of using SDFs, helping create more natural shapes.
 
 #### union
 
@@ -1356,7 +1615,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1400,7 +1659,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1444,7 +1703,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1490,7 +1749,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1534,7 +1793,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1578,7 +1837,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1622,7 +1881,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 
@@ -1665,7 +1924,7 @@ function draw() {
   directionalLight(200, 200, 200, 0.3, 0.6, -1)
   specularMaterial(150)
   shininess(100)
-  shape.draw(200)
+  shape.draw()
 }
 ```
 

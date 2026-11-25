@@ -1,4 +1,11 @@
 {
+  "buildSDF": [
+    "buildSDF(callback)"
+  ],
+  "draw": [
+    "draw([radius=200])",
+    "draw(boundsCallback)"
+  ],
   "sphere": [
     "sphere(radius)"
   ],

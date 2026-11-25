@@ -9,15 +9,19 @@
 //   --readme path             the README to update, README.md by default
 //
 // An example is a whole sketch in readme/examples/<section>/<name>.js. It
-// belongs to the #### heading in README.md named <name>. Examples without a
+// belongs to the #### heading in README.md named <name>. An item can have more
+// examples, in <name>.<variant>.js. The plain <name>.js is the first one and the
+// only one that shows the signatures, so it should be the simple, typical use.
+// Examples without a
 // title live in readme/examples/examples and go in the "### Examples" section
 // instead. Signatures come from readme/signatures.json, a list of overloads per
 // name.
 //
 // The only text this script ever writes in the README is the block between
-// <!-- p5.sdf example: <name> --> and <!-- /p5.sdf example: <name> -->. It goes
-// at the end of the section, so everything written under a heading, including
-// everything between the heading and the block, is left as it is
+// <!-- p5.sdf example: <id> --> and <!-- /p5.sdf example: <id> -->, where the id
+// is the file name without .js. A new block goes at the end of the section, after
+// the blocks already there, so everything written under a heading, including
+// text before a block, is left as it is
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -90,28 +94,37 @@ function loadExamples(only) {
       if (!file.endsWith('.js')) {
         continue;
       }
-      const name = path.basename(file, '.js');
-      if (only && !only.has(name)) {
+      const id = path.basename(file, '.js');
+      const name = id.split('.')[0];
+      if (only && !only.has(name) && !only.has(id)) {
         continue;
       }
       examples.push({
+        id,
         name,
         section,
         code: fs.readFileSync(path.join(sectionDir, file), 'utf8').trim(),
-        signatures: signatures[name] ?? [],
-        imageFile: path.join(IMAGES_DIR, section, `${name}.png`),
-        imageSrc: `readme/images/${section}/${name}.png`,
+        signatures: id === name ? signatures[name] ?? [] : [],
+        imageFile: path.join(IMAGES_DIR, section, `${id}.png`),
+        imageSrc: `readme/images/${section}/${id}.png`,
       });
     }
   }
   const seen = new Map();
   for (const example of examples) {
-    if (seen.has(example.name)) {
-      throw new Error(`Two examples are named ${example.name}: ${seen.get(example.name)} and ${example.section}`);
+    if (seen.has(example.id)) {
+      throw new Error(`Two examples are named ${example.id}: ${seen.get(example.id)} and ${example.section}`);
     }
-    seen.set(example.name, example.section);
+    seen.set(example.id, example.section);
   }
-  return examples;
+  // The plain <name>.js sorts before its variants, which then keep their order
+  return examples.sort(
+    (a, b) =>
+      a.section.localeCompare(b.section) ||
+      a.name.localeCompare(b.name) ||
+      (b.id === b.name) - (a.id === a.name) ||
+      a.id.localeCompare(b.id)
+  );
 }
 
 ////////////////////////
@@ -129,7 +142,7 @@ function pageHtml(example, renderer) {
       .replace(/(?<!async )function setup\(\)/, 'async function setup()')
       .replace(/createCanvas\(([^)]*), WEBGL\)/, 'await createCanvas($1, WEBGPU)');
     if (!webgpuCode.includes('await createCanvas')) {
-      throw new Error(`${example.name} can't be switched to WebGPU, it needs a setup() calling createCanvas(w, h, WEBGL)`);
+      throw new Error(`${example.id} can't be switched to WebGPU, it needs a setup() calling createCanvas(w, h, WEBGL)`);
     }
     code = webgpuCode;
   }
@@ -188,7 +201,7 @@ async function takeScreenshots(examples, renderer) {
         deviceScaleFactor: PIXEL_DENSITY,
       });
       try {
-        const htmlPath = path.join(tmpDir, `${example.name}.html`);
+        const htmlPath = path.join(tmpDir, `${example.id}.html`);
         fs.writeFileSync(htmlPath, pageHtml(example, renderer));
         // Examples load files like images by relative path, as a reader's
         // sketch would, so the assets go next to the page
@@ -209,9 +222,9 @@ async function takeScreenshots(examples, renderer) {
           path: example.imageFile,
           clip: { x: 0, y: 0, width: CANVAS_SIZE, height: CANVAS_SIZE },
         });
-        console.log(`screenshot  ${example.section}/${example.name}`);
+        console.log(`screenshot  ${example.section}/${example.id}`);
       } catch (error) {
-        failures.push(`${example.section}/${example.name}: ${errors[0] ?? error.message.split('\n')[0]}`);
+        failures.push(`${example.section}/${example.id}: ${errors[0] ?? error.message.split('\n')[0]}`);
       }
       await page.close();
     }
@@ -234,7 +247,7 @@ function blockLines(example) {
     ? ['```', ...example.signatures, '```', '']
     : [];
   return [
-    startMarker(example.name),
+    startMarker(example.id),
     ...signatures,
     '<table>',
     '<tr>',
@@ -247,12 +260,12 @@ function blockLines(example) {
     '</td>',
     '<td>',
     '',
-    `<img src="${example.imageSrc}" width="${CANVAS_SIZE}" alt="${example.name} example">`,
+    `<img src="${example.imageSrc}" width="${CANVAS_SIZE}" alt="${example.id} example">`,
     '',
     '</td>',
     '</tr>',
     '</table>',
-    endMarker(example.name),
+    endMarker(example.id),
   ];
 }
 
@@ -299,11 +312,11 @@ function updateReadme(text, examples) {
     const headings = findHeadings(lines);
     const matches = findHeadingFor(headings, example);
     if (matches.length === 0) {
-      report.unmatched.push(example.name);
+      report.unmatched.push(example.id);
       continue;
     }
     if (matches.length > 1) {
-      report.ambiguous.push(example.name);
+      report.ambiguous.push(example.id);
       continue;
     }
     const heading = matches[0];
@@ -312,18 +325,18 @@ function updateReadme(text, examples) {
     const block = blockLines(example);
 
     const start = lines.findIndex(
-      (line, index) => index > heading.index && index < sectionEnd && line.trim() === startMarker(example.name)
+      (line, index) => index > heading.index && index < sectionEnd && line.trim() === startMarker(example.id)
     );
     const end = start === -1
       ? -1
-      : lines.findIndex((line, index) => index > start && index < sectionEnd && line.trim() === endMarker(example.name));
+      : lines.findIndex((line, index) => index > start && index < sectionEnd && line.trim() === endMarker(example.id));
 
     if (start !== -1 && end !== -1) {
       if (lines.slice(start, end + 1).join('\n') === block.join('\n')) {
-        report.unchanged.push(example.name);
+        report.unchanged.push(example.id);
       } else {
         lines = [...lines.slice(0, start), ...block, ...lines.slice(end + 1)];
-        report.updated.push(example.name);
+        report.updated.push(example.id);
       }
       continue;
     }
@@ -339,7 +352,7 @@ function updateReadme(text, examples) {
       inserted.push('');
     }
     lines = [...lines.slice(0, insertAt), ...inserted, ...lines.slice(insertAt)];
-    report.inserted.push(example.name);
+    report.inserted.push(example.id);
   }
 
   return { text: lines.join('\n'), report };
