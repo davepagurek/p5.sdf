@@ -14,7 +14,7 @@ function sdf(p5, fn) {
   // can find the struct definition via shader._fragSrc. TODO: Update p5 upstream
   // to be able to read this out of declarations instead, and to let fragDeclarations
   // work in the constructor
-  const fragPrefix = `
+  const glslFragPrefix = `
     struct SDFResult {
       float sdfDist;
       vec4 sdfColor;
@@ -28,119 +28,287 @@ function sdf(p5, fn) {
     uniform mat3 uNormalMatrix;
   `;
 
-  fn.baseSDFShader = function() {
-    if (!this._baseSDFShader) {
-      const base = this.baseMaterialShader();
-      this._baseSDFShader = new p5.Shader(
-        base._renderer,
-        base._vertSrc,
-        injectAfterLastPrecision(base._fragSrc, fragPrefix),
-        {
-          declarations: `
-            uniform mat4 uInverseModelViewMatrix;
-            uniform mat4 uInverseProjectionMatrix;
-            uniform float uSDFMaxDist;
-            uniform vec4 uViewport;
+  const glslBaseSDFShader = (sketch) => {
+    const base = sketch.baseMaterialShader();
+    return new p5.Shader(
+      base._renderer,
+      base._vertSrc,
+      injectAfterLastPrecision(base._fragSrc, glslFragPrefix),
+      {
+        declarations: `
+          uniform mat4 uInverseModelViewMatrix;
+          uniform mat4 uInverseProjectionMatrix;
+          uniform float uSDFMaxDist;
+          uniform vec4 uViewport;
 
-            vec3 _sdfHitViewPos;
-            vec3 _sdfNormal;
-            float _sdfShininess;
-            float _sdfMetalness;
-          `,
-          uniforms: {
-            ...base.hooks.uniforms,
-          },
-          vertex: {
-            ...base.hooks.vertex,
-          },
-          fragment: {
-            'SDFResult sdfScene': `(SDFResult result, vec3 sdfPoint, bool sdfComputeMaterial) {
-              result.sdfDist = length(sdfPoint) - 1.0;
-              return result;
-            }`,
-            ...base.hooks.fragment,
-            'Inputs getPixelInputs': `(Inputs inputs) {
-              vec2 ndc = (gl_FragCoord.xy - uViewport.xy) / uViewport.zw * 2.0 - 1.0;
-              vec4 p0 = uInverseProjectionMatrix * vec4(ndc, -1.0, 1.0);
-              p0 /= p0.w;
-              vec4 p1 = uInverseProjectionMatrix * vec4(ndc, 1.0, 1.0);
-              p1 /= p1.w;
-              vec3 rayDir = normalize(p1.xyz - p0.xyz);
-              vec3 rayOrigin = vViewPosition;
+          vec3 _sdfHitViewPos;
+          vec3 _sdfNormal;
+          float _sdfShininess;
+          float _sdfMetalness;
+        `,
+        uniforms: {
+          ...base.hooks.uniforms,
+        },
+        vertex: {
+          ...base.hooks.vertex,
+        },
+        fragment: {
+          'SDFResult sdfScene': `(SDFResult result, vec3 sdfPoint, bool sdfComputeMaterial) {
+            result.sdfDist = length(sdfPoint) - 1.0;
+            return result;
+          }`,
+          ...base.hooks.fragment,
+          'Inputs getPixelInputs': `(Inputs inputs) {
+            vec2 ndc = (gl_FragCoord.xy - uViewport.xy) / uViewport.zw * 2.0 - 1.0;
+            vec4 p0 = uInverseProjectionMatrix * vec4(ndc, -1.0, 1.0);
+            p0 /= p0.w;
+            vec4 p1 = uInverseProjectionMatrix * vec4(ndc, 1.0, 1.0);
+            p1 /= p1.w;
+            vec3 rayDir = normalize(p1.xyz - p0.xyz);
+            vec3 rayOrigin = vViewPosition;
 
-              SDFResult defaultResult;
-              defaultResult.sdfColor = inputs.color;
-              defaultResult.sdfAmbient = inputs.ambientMaterial;
-              defaultResult.sdfSpecular = inputs.specularMaterial;
-              defaultResult.sdfEmissive = inputs.emissiveMaterial;
-              defaultResult.sdfShininess = inputs.shininess;
-              defaultResult.sdfMetalness = inputs.metalness;
+            SDFResult defaultResult;
+            defaultResult.sdfColor = inputs.color;
+            defaultResult.sdfAmbient = inputs.ambientMaterial;
+            defaultResult.sdfSpecular = inputs.specularMaterial;
+            defaultResult.sdfEmissive = inputs.emissiveMaterial;
+            defaultResult.sdfShininess = inputs.shininess;
+            defaultResult.sdfMetalness = inputs.metalness;
 
-              float t = 0.0;
-              bool hit = false;
-              for (int i = 0; i < 256; i++) {
-                vec3 viewPos = rayOrigin + t * rayDir;
-                vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
-                defaultResult.sdfDist = 1e10;
-                float d = HOOK_sdfScene(defaultResult, sdfPos, false).sdfDist;
-                if (d < 0.001) { hit = true; break; }
-                if (t > uSDFMaxDist) break;
-                t += d;
-              }
-
-              if (!hit) discard;
-
-              vec3 hitViewPos = rayOrigin + t * rayDir;
-              vec3 hitSdfPos = (uInverseModelViewMatrix * vec4(hitViewPos, 1.0)).xyz;
-
+            float t = 0.0;
+            bool hit = false;
+            for (int i = 0; i < 256; i++) {
+              vec3 viewPos = rayOrigin + t * rayDir;
+              vec3 sdfPos = (uInverseModelViewMatrix * vec4(viewPos, 1.0)).xyz;
               defaultResult.sdfDist = 1e10;
-              SDFResult hitResult = HOOK_sdfScene(defaultResult, hitSdfPos, true);
+              float d = HOOK_sdfScene(defaultResult, sdfPos, false).sdfDist;
+              if (d < 0.001) { hit = true; break; }
+              if (t > uSDFMaxDist) break;
+              t += d;
+            }
 
-              float eps = 0.001;
-              vec2 k = vec2(1.0, -1.0);
-              defaultResult.sdfDist = 1e10;
-              vec3 sdfNormal = normalize(
-                k.xyy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xyy, false).sdfDist +
-                k.yyx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yyx, false).sdfDist +
-                k.yxy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yxy, false).sdfDist +
-                k.xxx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xxx, false).sdfDist
-              );
+            if (!hit) discard;
 
-              _sdfHitViewPos = hitViewPos;
-              _sdfNormal = normalize(uNormalMatrix * sdfNormal);
-              _sdfShininess = hitResult.sdfShininess;
-              _sdfMetalness = hitResult.sdfMetalness;
+            vec3 hitViewPos = rayOrigin + t * rayDir;
+            vec3 hitSdfPos = (uInverseModelViewMatrix * vec4(hitViewPos, 1.0)).xyz;
 
-              inputs.normal = _sdfNormal;
-              inputs.color = hitResult.sdfColor;
-              inputs.shininess = hitResult.sdfShininess;
-              inputs.metalness = hitResult.sdfMetalness;
-              inputs.ambientMaterial = hitResult.sdfAmbient;
-              inputs.specularMaterial = hitResult.sdfSpecular;
-              inputs.emissiveMaterial = hitResult.sdfEmissive;
+            defaultResult.sdfDist = 1e10;
+            SDFResult hitResult = HOOK_sdfScene(defaultResult, hitSdfPos, true);
 
-              vec4 clipPos = uProjectionMatrix * vec4(hitViewPos, 1.0);
-              gl_FragDepth = (clipPos.z / clipPos.w + 1.0) * 0.5;
+            float eps = 0.001;
+            vec2 k = vec2(1.0, -1.0);
+            defaultResult.sdfDist = 1e10;
+            vec3 sdfNormal = normalize(
+              k.xyy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xyy, false).sdfDist +
+              k.yyx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yyx, false).sdfDist +
+              k.yxy * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.yxy, false).sdfDist +
+              k.xxx * HOOK_sdfScene(defaultResult, hitSdfPos + eps * k.xxx, false).sdfDist
+            );
 
-              return inputs;
-            }`,
-            'vec4 combineColors': `(ColorComponents components) {
-              vec3 diffuse;
-              vec3 specular;
-              totalLight(_sdfHitViewPos, _sdfNormal, _sdfShininess, _sdfMetalness, diffuse, specular);
-              vec4 color = vec4(0.0);
-              color.rgb += diffuse * components.baseColor;
-              color.rgb += components.ambient * components.ambientColor;
-              color.rgb += specular * components.specularColor;
-              color.rgb += components.emissive;
-              color.a = components.opacity;
-              return color;
-            }`,
-          },
-        }
-      );
+            _sdfHitViewPos = hitViewPos;
+            _sdfNormal = normalize(uNormalMatrix * sdfNormal);
+            _sdfShininess = hitResult.sdfShininess;
+            _sdfMetalness = hitResult.sdfMetalness;
+
+            inputs.normal = _sdfNormal;
+            inputs.color = hitResult.sdfColor;
+            inputs.shininess = hitResult.sdfShininess;
+            inputs.metalness = hitResult.sdfMetalness;
+            inputs.ambientMaterial = hitResult.sdfAmbient;
+            inputs.specularMaterial = hitResult.sdfSpecular;
+            inputs.emissiveMaterial = hitResult.sdfEmissive;
+
+            vec4 clipPos = uProjectionMatrix * vec4(hitViewPos, 1.0);
+            gl_FragDepth = (clipPos.z / clipPos.w + 1.0) * 0.5;
+
+            return inputs;
+          }`,
+          'vec4 combineColors': `(ColorComponents components) {
+            vec3 diffuse;
+            vec3 specular;
+            totalLight(_sdfHitViewPos, _sdfNormal, _sdfShininess, _sdfMetalness, diffuse, specular);
+            vec4 color = vec4(0.0);
+            color.rgb += diffuse * components.baseColor;
+            color.rgb += components.ambient * components.ambientColor;
+            color.rgb += specular * components.specularColor;
+            color.rgb += components.emissive;
+            color.a = components.opacity;
+            return color;
+          }`,
+        },
+      }
+    );
+  };
+
+  const wgslFragPrefix = `
+    struct SDFResult {
+      sdfDist: f32,
+      sdfColor: vec4<f32>,
+      sdfAmbient: vec3<f32>,
+      sdfSpecular: vec3<f32>,
+      sdfEmissive: vec3<f32>,
+      sdfShininess: f32,
+      sdfMetalness: f32,
+    };
+    struct SDFFragmentOutput {
+      @location(0) color: vec4<f32>,
+      @builtin(frag_depth) depth: f32,
+    };
+  `;
+
+  // In GLSL the fragment depth is a global, gl_FragDepth, so a hook can set it.
+  // WGSL has no such global: the fragment output is whatever the entry point
+  // returns, and p5's material shader returns only a color. The raymarched
+  // surface is not where the bounding sphere is, so depth has to come from the
+  // ray hit, which means the entry point itself is rewritten to also return a
+  // depth rather than just adding hooks.
+  // TODO: Make this more supported in p5 core, for example a hook or option for
+  // writing fragment depth, so addons don't have to rewrite the entry point
+  const patchWGSLFragment = (src) => {
+    const signature = '-> @location(0) vec4<f32> {';
+    const outputStatement = 'return outColor;';
+    if (!src.includes('@fragment') || !src.includes(signature) || !src.includes(outputStatement)) {
+      throw new Error('p5.sdf could not patch the WebGPU material shader. This version of p5 may have changed it.');
     }
-    return this._baseSDFShader;
+    // Hooks only receive their own arguments, so the interpolated position of
+    // the bounding sphere is stashed for the ray origin
+    return src
+      .replace('@fragment', `${wgslFragPrefix}\n@fragment`)
+      .replace(signature, '-> SDFFragmentOutput {\n  _sdfProxyViewPos = input.vViewPosition;')
+      .replace(outputStatement, 'return SDFFragmentOutput(outColor, _sdfDepth);');
+  };
+
+  const wgslBaseSDFShader = (sketch) => {
+    const base = sketch.baseMaterialShader();
+    const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    return new p5.Shader(
+      base._renderer,
+      base._vertSrc,
+      patchWGSLFragment(base._fragSrc),
+      {
+        declarations: `
+          var<private> _sdfProxyViewPos: vec3<f32>;
+          var<private> _sdfHitViewPos: vec3<f32>;
+          var<private> _sdfNormal: vec3<f32>;
+          var<private> _sdfShininess: f32;
+          var<private> _sdfMetalness: f32;
+          var<private> _sdfDepth: f32;
+        `,
+        uniforms: {
+          ...base.hooks.uniforms,
+          'uInverseModelViewMatrix: mat4x4<f32>': identity,
+          'uInverseProjectionMatrix: mat4x4<f32>': identity,
+          'uSDFMaxDist: f32': 0,
+          'uSDFViewport: vec4<f32>': [0, 0, 1, 1],
+        },
+        vertex: {
+          ...base.hooks.vertex,
+        },
+        fragment: {
+          'SDFResult sdfScene': `(result: SDFResult, sdfPoint: vec3<f32>, sdfComputeMaterial: bool) {
+            var out = result;
+            out.sdfDist = length(sdfPoint) - 1.0;
+            return out;
+          }`,
+          ...base.hooks.fragment,
+          'Inputs getPixelInputs': `(inputs: Inputs) {
+            var out = inputs;
+            let size = hooks.uSDFViewport.zw;
+            let ndc = vec2<f32>(
+              _p5FragPos.x / size.x * 2.0 - 1.0,
+              1.0 - _p5FragPos.y / size.y * 2.0
+            );
+            let near4 = hooks.uInverseProjectionMatrix * vec4<f32>(ndc, 0.0, 1.0);
+            let far4 = hooks.uInverseProjectionMatrix * vec4<f32>(ndc, 1.0, 1.0);
+            let rayDir = normalize(far4.xyz / far4.w - near4.xyz / near4.w);
+            let rayOrigin = _sdfProxyViewPos;
+
+            var current = SDFResult(
+              1e10,
+              inputs.color,
+              inputs.ambientMaterial,
+              inputs.specularMaterial,
+              inputs.emissiveMaterial,
+              inputs.shininess,
+              inputs.metalness
+            );
+
+            var t = 0.0;
+            var hit = false;
+            for (var i = 0; i < 256; i++) {
+              let viewPos = rayOrigin + t * rayDir;
+              let sdfPos = (hooks.uInverseModelViewMatrix * vec4<f32>(viewPos, 1.0)).xyz;
+              current.sdfDist = 1e10;
+              let d = HOOK_sdfScene(current, sdfPos, false, _p5FragPos).sdfDist;
+              if (d < 0.001) {
+                hit = true;
+                break;
+              }
+              if (t > hooks.uSDFMaxDist) {
+                break;
+              }
+              t += d;
+            }
+
+            if (!hit) {
+              discard;
+            }
+
+            let hitViewPos = rayOrigin + t * rayDir;
+            let hitSdfPos = (hooks.uInverseModelViewMatrix * vec4<f32>(hitViewPos, 1.0)).xyz;
+
+            current.sdfDist = 1e10;
+            let hitResult = HOOK_sdfScene(current, hitSdfPos, true, _p5FragPos);
+
+            let eps = 0.001;
+            let k = vec2<f32>(1.0, -1.0);
+            current.sdfDist = 1e10;
+            let sdfNormal = normalize(
+              k.xyy * HOOK_sdfScene(current, hitSdfPos + eps * k.xyy, false, _p5FragPos).sdfDist +
+              k.yyx * HOOK_sdfScene(current, hitSdfPos + eps * k.yyx, false, _p5FragPos).sdfDist +
+              k.yxy * HOOK_sdfScene(current, hitSdfPos + eps * k.yxy, false, _p5FragPos).sdfDist +
+              k.xxx * HOOK_sdfScene(current, hitSdfPos + eps * k.xxx, false, _p5FragPos).sdfDist
+            );
+
+            _sdfHitViewPos = hitViewPos;
+            _sdfNormal = normalize(model.uNormalMatrix * sdfNormal);
+            _sdfShininess = hitResult.sdfShininess;
+            _sdfMetalness = hitResult.sdfMetalness;
+
+            out.normal = _sdfNormal;
+            out.color = hitResult.sdfColor;
+            out.shininess = hitResult.sdfShininess;
+            out.metalness = hitResult.sdfMetalness;
+            out.ambientMaterial = hitResult.sdfAmbient;
+            out.specularMaterial = hitResult.sdfSpecular;
+            out.emissiveMaterial = hitResult.sdfEmissive;
+
+            let clipPos = camera.uProjectionMatrix * vec4<f32>(hitViewPos, 1.0);
+            _sdfDepth = clipPos.z / clipPos.w;
+
+            return out;
+          }`,
+          'vec4f combineColors': `(components: ColorComponents) {
+            let light = totalLight(_sdfHitViewPos, _sdfNormal, _sdfShininess, _sdfMetalness);
+            var rgb = vec3<f32>(0.0);
+            rgb += light.diffuse * components.baseColor;
+            rgb += components.ambient * components.ambientColor;
+            rgb += light.specular * components.specularColor;
+            rgb += components.emissive;
+            return vec4<f32>(rgb, components.opacity);
+          }`,
+        },
+      }
+    );
+  };
+
+  fn.baseSDFShader = function() {
+    const isWebGPU = this.rendererType === 'webgpu';
+    const cacheKey = isWebGPU ? '_baseSDFShaderWebGPU' : '_baseSDFShader';
+    if (!this[cacheKey]) {
+      this[cacheKey] = isWebGPU ? wgslBaseSDFShader(this) : glslBaseSDFShader(this);
+    }
+    return this[cacheKey];
   };
 
   const OP = {
@@ -669,8 +837,26 @@ function sdf(p5, fn) {
         pMatrix.invert(pMatrix);
         shader.setUniform('uInverseProjectionMatrix', pMatrix.mat4);
 
-        sketch.drawingContext.enable(sketch.drawingContext.CULL_FACE);
-        sketch.drawingContext.cullFace(sketch.drawingContext.FRONT);
+        const isWebGPU = sketch.rendererType === 'webgpu';
+        if (isWebGPU) {
+          // This addon's WebGPU shader needs the canvas size in device pixels:
+          // the GPU gives the fragment shader its position in device pixels
+          // (@builtin(position)), and the shader uses the size to turn that
+          // position into a ray. p5 provides a uViewport uniform to any shader
+          // that declares one (Renderer3D._setGlobalUniforms), but the WebGL
+          // renderer fills it in device pixels and the WebGPU renderer fills it
+          // in CSS pixels, which would give wrong rays on high density screens.
+          // So the addon declares its own uniform, which p5 never overwrites,
+          // and sets it here in device pixels
+          const density = sketch.pixelDensity();
+          shader.setUniform('uSDFViewport', [0, 0, sketch.width * density, sketch.height * density]);
+          // TODO: p5's WebGPU renderer has no face culling, so both faces of the
+          // bounding shape are drawn and rays from the far faces just miss. Once
+          // it can cull, cull the front faces here like the WebGL branch does
+        } else {
+          sketch.drawingContext.enable(sketch.drawingContext.CULL_FACE);
+          sketch.drawingContext.cullFace(sketch.drawingContext.FRONT);
+        }
 
         if (typeof radiusOrCallback === 'number') {
           const r = radiusOrCallback;
@@ -681,7 +867,9 @@ function sdf(p5, fn) {
           radiusOrCallback();
         }
 
-        sketch.drawingContext.disable(sketch.drawingContext.CULL_FACE);
+        if (!isWebGPU) {
+          sketch.drawingContext.disable(sketch.drawingContext.CULL_FACE);
+        }
         sketch.pop();
       },
     };
