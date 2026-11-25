@@ -1,0 +1,1680 @@
+# p5.sdf
+
+## Reference
+
+### Primitives
+
+#### sphere
+
+<!-- p5.sdf example: sphere -->
+```
+sphere(radius)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/sphere.png" width="200" alt="sphere example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: sphere -->
+
+#### box
+
+<!-- p5.sdf example: box -->
+```
+box(width, [height], [depth])
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    box(120)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/box.png" width="200" alt="box example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: box -->
+
+#### roundBox
+
+<!-- p5.sdf example: roundBox -->
+```
+roundBox(width, height, depth, radius)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    roundBox(120, 120, 120, 15)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/roundBox.png" width="200" alt="roundBox example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: roundBox -->
+
+#### boxFrame
+
+<!-- p5.sdf example: boxFrame -->
+```
+boxFrame(width, height, depth, thickness)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    boxFrame(120, 120, 120, 8)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/boxFrame.png" width="200" alt="boxFrame example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: boxFrame -->
+
+#### cylinder
+
+<!-- p5.sdf example: cylinder -->
+```
+cylinder(radius, height)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    cylinder(60, 120)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/cylinder.png" width="200" alt="cylinder example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: cylinder -->
+
+#### capsule
+
+<!-- p5.sdf example: capsule -->
+```
+capsule(height, radius)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    translate(0, -40, 0)
+    capsule(80, 40)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/capsule.png" width="200" alt="capsule example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: capsule -->
+
+#### torus
+
+<!-- p5.sdf example: torus -->
+```
+torus(radius, tubeRadius)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    torus(70, 25)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/torus.png" width="200" alt="torus example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: torus -->
+
+#### plane
+
+<!-- p5.sdf example: plane -->
+```
+plane(nx, ny, nz, offset)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(90)
+    intersect()
+    plane(0, 1, 0, 0)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/plane.png" width="200" alt="plane example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: plane -->
+
+#### ellipsoid
+
+<!-- p5.sdf example: ellipsoid -->
+```
+ellipsoid(radiusX, radiusY, radiusZ)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    ellipsoid(90, 55, 45)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/ellipsoid.png" width="200" alt="ellipsoid example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: ellipsoid -->
+
+#### octahedron
+
+<!-- p5.sdf example: octahedron -->
+```
+octahedron(size)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    octahedron(90)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/octahedron.png" width="200" alt="octahedron example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: octahedron -->
+
+### Transformations
+
+#### translate
+
+<!-- p5.sdf example: translate -->
+```
+translate(x, [y], [z])
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    translate(-50, 0, 0)
+    sphere(40)
+    translate(100, 0, 0)
+    sphere(40)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/translate.png" width="200" alt="translate example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: translate -->
+
+#### scale
+
+<!-- p5.sdf example: scale -->
+```
+scale(factor)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    box(60)
+    translate(100, 0, 0)
+    scale(0.5)
+    box(60)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/scale.png" width="200" alt="scale example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: scale -->
+
+#### rotate
+
+<!-- p5.sdf example: rotate -->
+```
+rotate(angle, [axis])
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    rotate(0.8, [1, 1, 0])
+    box(120, 40, 80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/rotate.png" width="200" alt="rotate example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: rotate -->
+
+#### rotateX
+
+<!-- p5.sdf example: rotateX -->
+```
+rotateX(angle)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    rotateX(0.7)
+    box(120, 40, 80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/rotateX.png" width="200" alt="rotateX example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: rotateX -->
+
+#### rotateY
+
+<!-- p5.sdf example: rotateY -->
+```
+rotateY(angle)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    rotateY(0.7)
+    box(120, 40, 80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/rotateY.png" width="200" alt="rotateY example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: rotateY -->
+
+#### rotateZ
+
+<!-- p5.sdf example: rotateZ -->
+```
+rotateZ(angle)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    rotateZ(0.7)
+    box(120, 40, 80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/rotateZ.png" width="200" alt="rotateZ example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: rotateZ -->
+
+#### shearX
+
+<!-- p5.sdf example: shearX -->
+```
+shearX(angle)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    shearX(0.5)
+    box(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/shearX.png" width="200" alt="shearX example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: shearX -->
+
+#### shearY
+
+<!-- p5.sdf example: shearY -->
+```
+shearY(angle)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    shearY(0.5)
+    box(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/shearY.png" width="200" alt="shearY example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: shearY -->
+
+#### mirror
+
+<!-- p5.sdf example: mirror -->
+```
+mirror(axis)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    mirror('x')
+    translate(60, 0, 0)
+    rotateZ(0.6)
+    box(80, 30, 30)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/mirror.png" width="200" alt="mirror example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: mirror -->
+
+#### elongate
+
+<!-- p5.sdf example: elongate -->
+```
+elongate(x, y, z)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    elongate(40, 0, 0)
+    sphere(40)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/elongate.png" width="200" alt="elongate example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: elongate -->
+
+#### twist
+
+<!-- p5.sdf example: twist -->
+```
+twist(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    twist(0.04)
+    box(60, 140, 60)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/twist.png" width="200" alt="twist example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: twist -->
+
+#### bend
+
+<!-- p5.sdf example: bend -->
+```
+bend(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    bend(0.006)
+    rotateZ(Math.PI / 2)
+    cylinder(25, 180)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/transformations/bend.png" width="200" alt="bend example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: bend -->
+
+### Materials
+
+#### fill
+
+<!-- p5.sdf example: fill -->
+```
+fill(gray)
+fill(r, g, b)
+fill(color)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(255, 80, 80)
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/fill.png" width="200" alt="fill example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: fill -->
+
+#### ambientMaterial
+
+<!-- p5.sdf example: ambientMaterial -->
+```
+ambientMaterial(gray)
+ambientMaterial(r, g, b)
+ambientMaterial(color)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    ambientMaterial(255, 80, 80)
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/ambientMaterial.png" width="200" alt="ambientMaterial example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: ambientMaterial -->
+
+#### specularMaterial
+
+<!-- p5.sdf example: specularMaterial -->
+```
+specularMaterial(gray)
+specularMaterial(r, g, b)
+specularMaterial(color)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(120)
+    specularMaterial(0, 255, 0)
+    shininess(20)
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/specularMaterial.png" width="200" alt="specularMaterial example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: specularMaterial -->
+
+#### emissiveMaterial
+
+<!-- p5.sdf example: emissiveMaterial -->
+```
+emissiveMaterial(gray)
+emissiveMaterial(r, g, b)
+emissiveMaterial(color)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    fill(60)
+    emissiveMaterial(0, 70, 140)
+    sphere(80)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/emissiveMaterial.png" width="200" alt="emissiveMaterial example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: emissiveMaterial -->
+
+#### shininess
+
+<!-- p5.sdf example: shininess -->
+```
+shininess(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    translate(-60, 0, 0)
+    shininess(5)
+    sphere(50)
+    translate(120, 0, 0)
+    shininess(40)
+    sphere(50)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/shininess.png" width="200" alt="shininess example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: shininess -->
+
+#### metalness
+
+<!-- p5.sdf example: metalness -->
+```
+metalness(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+let environment
+
+async function setup() {
+  createCanvas(200, 200, WEBGL)
+  environment = await loadImage('outdoor_spheremap.jpg')
+  shape = buildSDF(() => {
+    translate(-60, 0, 0)
+    metalness(0)
+    sphere(50)
+    translate(120, 0, 0)
+    metalness(1)
+    sphere(50)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  imageLight(environment)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/materials/metalness.png" width="200" alt="metalness example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: metalness -->
+
+### Modifiers
+
+#### rounded
+
+<!-- p5.sdf example: rounded -->
+```
+rounded(radius, callback)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    rounded(12, () => {
+      box(100)
+    })
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/modifiers/rounded.png" width="200" alt="rounded example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: rounded -->
+
+#### onion
+
+<!-- p5.sdf example: onion -->
+```
+onion(thickness, callback)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    onion(6, () => {
+      sphere(80)
+    })
+    intersect()
+    plane(0, 0, 1, 0)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/modifiers/onion.png" width="200" alt="onion example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: onion -->
+
+### Operations
+
+#### union
+
+<!-- p5.sdf example: union -->
+```
+union()
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(55)
+    translate(50, 0, 0)
+    sphere(55)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/union.png" width="200" alt="union example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: union -->
+
+#### subtract
+
+<!-- p5.sdf example: subtract -->
+```
+subtract()
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(75)
+    subtract()
+    cylinder(35, 200)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/subtract.png" width="200" alt="subtract example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: subtract -->
+
+#### intersect
+
+<!-- p5.sdf example: intersect -->
+```
+intersect()
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(80)
+    intersect()
+    box(100)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/intersect.png" width="200" alt="intersect example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: intersect -->
+
+#### smoothUnion
+
+<!-- p5.sdf example: smoothUnion -->
+```
+smoothUnion(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    smoothUnion(30)
+    translate(-35, 0, 0)
+    sphere(50)
+    translate(70, 0, 0)
+    sphere(50)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/smoothUnion.png" width="200" alt="smoothUnion example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: smoothUnion -->
+
+#### smoothSubtract
+
+<!-- p5.sdf example: smoothSubtract -->
+```
+smoothSubtract(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(75)
+    smoothSubtract(25)
+    cylinder(45, 200)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/smoothSubtract.png" width="200" alt="smoothSubtract example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: smoothSubtract -->
+
+#### smoothIntersect
+
+<!-- p5.sdf example: smoothIntersect -->
+```
+smoothIntersect(amount)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(80)
+    smoothIntersect(30)
+    box(100)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/operations/smoothIntersect.png" width="200" alt="smoothIntersect example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: smoothIntersect -->
+
+### Examples
+
+<!-- p5.sdf example: blendedMaterials -->
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    smoothUnion(40)
+    fill(255, 80, 80)
+    translate(-45, 0, 0)
+    sphere(50)
+    fill(80, 80, 255)
+    translate(90, 0, 0)
+    sphere(50)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/examples/blendedMaterials.png" width="200" alt="blendedMaterials example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: blendedMaterials -->
+
+<!-- p5.sdf example: loops -->
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    smoothUnion(20)
+    for (let i = 0; i < 8; i++) {
+      push()
+      rotateY(i * Math.PI / 4)
+      translate(70, 0, 0)
+      sphere(22)
+      pop()
+    }
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw(200)
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/examples/loops.png" width="200" alt="loops example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: loops -->

@@ -1,0 +1,118 @@
+{
+  "sphere": [
+    "sphere(radius)"
+  ],
+  "box": [
+    "box(width, [height], [depth])"
+  ],
+  "roundBox": [
+    "roundBox(width, height, depth, radius)"
+  ],
+  "boxFrame": [
+    "boxFrame(width, height, depth, thickness)"
+  ],
+  "cylinder": [
+    "cylinder(radius, height)"
+  ],
+  "capsule": [
+    "capsule(height, radius)"
+  ],
+  "torus": [
+    "torus(radius, tubeRadius)"
+  ],
+  "plane": [
+    "plane(nx, ny, nz, offset)"
+  ],
+  "ellipsoid": [
+    "ellipsoid(radiusX, radiusY, radiusZ)"
+  ],
+  "octahedron": [
+    "octahedron(size)"
+  ],
+  "translate": [
+    "translate(x, [y], [z])"
+  ],
+  "scale": [
+    "scale(factor)"
+  ],
+  "rotate": [
+    "rotate(angle, [axis])"
+  ],
+  "rotateX": [
+    "rotateX(angle)"
+  ],
+  "rotateY": [
+    "rotateY(angle)"
+  ],
+  "rotateZ": [
+    "rotateZ(angle)"
+  ],
+  "shearX": [
+    "shearX(angle)"
+  ],
+  "shearY": [
+    "shearY(angle)"
+  ],
+  "mirror": [
+    "mirror(axis)"
+  ],
+  "elongate": [
+    "elongate(x, y, z)"
+  ],
+  "twist": [
+    "twist(amount)"
+  ],
+  "bend": [
+    "bend(amount)"
+  ],
+  "fill": [
+    "fill(gray)",
+    "fill(r, g, b)",
+    "fill(color)"
+  ],
+  "ambientMaterial": [
+    "ambientMaterial(gray)",
+    "ambientMaterial(r, g, b)",
+    "ambientMaterial(color)"
+  ],
+  "specularMaterial": [
+    "specularMaterial(gray)",
+    "specularMaterial(r, g, b)",
+    "specularMaterial(color)"
+  ],
+  "emissiveMaterial": [
+    "emissiveMaterial(gray)",
+    "emissiveMaterial(r, g, b)",
+    "emissiveMaterial(color)"
+  ],
+  "shininess": [
+    "shininess(amount)"
+  ],
+  "metalness": [
+    "metalness(amount)"
+  ],
+  "rounded": [
+    "rounded(radius, callback)"
+  ],
+  "onion": [
+    "onion(thickness, callback)"
+  ],
+  "union": [
+    "union()"
+  ],
+  "subtract": [
+    "subtract()"
+  ],
+  "intersect": [
+    "intersect()"
+  ],
+  "smoothUnion": [
+    "smoothUnion(amount)"
+  ],
+  "smoothSubtract": [
+    "smoothSubtract(amount)"
+  ],
+  "smoothIntersect": [
+    "smoothIntersect(amount)"
+  ]
+}

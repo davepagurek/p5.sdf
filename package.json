@@ -4,7 +4,8 @@
   "description": "SDF raymarching for p5.strands",
   "main": "p5.sdf.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "readme": "node scripts/readme-screenshots.js"
   },
   "author": "Dave Pagurek",
   "license": "MIT",
