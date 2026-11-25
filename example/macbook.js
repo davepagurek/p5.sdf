@@ -19,61 +19,61 @@ function setup() {
     const lidAngle = (sin(t) * 0.5 + 0.5) * (PI * 100 / 180) + PI * 15 / 180
 
     // BASE 
-    sdf.push()
+    push()
     sdf.fill(185, 185, 190)
     sdf.roundBox(BW, BH, BD, CR)
-    sdf.pop()
+    pop()
 
     // HINGES 
     // Two barrel cylinders at (+/- 80, HY, HZ), lying along X
-    sdf.push()
+    push()
     sdf.fill(155, 155, 160)
     sdf.translate(80, HY, HZ)
     sdf.rotateZ(Math.PI / 2)
     sdf.cylinder(7, 38)
-    sdf.pop()
+    pop()
 
-    sdf.push()
+    push()
     sdf.fill(155, 155, 160)
     sdf.translate(-80, HY, HZ)
     sdf.rotateZ(Math.PI / 2)
     sdf.cylinder(7, 38)
-    sdf.pop()
+    pop()
 
     // LID 
-    sdf.push()
+    push()
     sdf.fill(185, 185, 190)
     sdf.translate(0, HY, HZ)
     sdf.rotateX(lidAngle)
     sdf.translate(0, -LH / 2, BD / 2)
     sdf.roundBox(LW, LH, LD, CR)
-    sdf.pop()
+    pop()
 
     // Screen face (dark display on inner face of lid)
-    sdf.push()
+    push()
     sdf.fill(15, 15, 20)
     sdf.translate(0, HY, HZ)
     sdf.rotateX(lidAngle)
     sdf.translate(0, -0.5, BD / 2)
     sdf.roundBox(LW - 28, 2, LD - 24, 3)
-    sdf.pop()
+    pop()
 
     // Camera notch
-    sdf.push()
+    push()
     sdf.fill(10, 10, 12)
     sdf.translate(0, HY, HZ)
     sdf.rotateX(lidAngle)
     sdf.translate(0, -0.5, BD / 2 + LD / 2 - 10)
     sdf.roundBox(28, 2, 8, 2)
-    sdf.pop()
+    pop()
 
     // KEYBOARD 
     // Dark deck panel (the recessed keyboard area)
-    sdf.push()
+    push()
     sdf.fill(38, 38, 42)
     sdf.translate(0, HY - 0.5, -32)
     sdf.roundBox(214, 2, 82, 4)
-    sdf.pop()
+    pop()
 
     // Keys: 4 rows of 10, back-to-front (row 0 = back/function row)
     const cols = 10
@@ -83,29 +83,31 @@ function setup() {
     const kZ0 = -61                          // back row z
     const kY = HY - 2                        // key center y (protrudes above base)
 
-    sdf.times(4).each(function(row) {
-      sdf.times(10).each(function(col) {
-        sdf.push()
-        sdf.fill(68, 68, 74)
-        sdf.translate(kX0 + col * pitchX, kY, kZ0 + row * pitchZ)
-        sdf.roundBox(keyW, keyH, keyD, keyR)
-        sdf.pop()
-      })
-    })
+    // One flat loop because p5 2.4.0 fails to build nested for loops when the
+    // inner body doesn't assign an outer variable
+    for (let key = 0; key < 40; key++) {
+      const row = floor(key / 10)
+      const col = key - row * 10
+      push()
+      sdf.fill(68, 68, 74)
+      sdf.translate(kX0 + col * pitchX, kY, kZ0 + row * pitchZ)
+      sdf.roundBox(keyW, keyH, keyD, keyR)
+      pop()
+    }
 
     // Space bar (front of keyboard)
-    sdf.push()
+    push()
     sdf.fill(68, 68, 74)
     sdf.translate(0, kY, kZ0 + 4 * pitchZ)
     sdf.roundBox(100, keyH, keyD, keyR)
-    sdf.pop()
+    pop()
 
     // TRACKPAD 
-    sdf.push()
+    push()
     sdf.fill(172, 172, 180)
     sdf.translate(0, HY - 0.5, 42)
     sdf.roundBox(110, 2, 62, 6)
-    sdf.pop()
+    pop()
 
     sdf.apply()
     sdfScene.end()
