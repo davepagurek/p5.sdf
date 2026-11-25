@@ -18,6 +18,8 @@ Or for OpenProcessing, you can add it directly via CDN:
 https://cdn.jsdelivr.net/npm/p5.sdf@0.0.1/p5.sdf.js
 ```
 
+Or fork this project on the p5.js web editor: https://editor.p5js.org/davepagurek/sketches/BHmhdypVb
+
 ## Reference
 
 ### Structure
