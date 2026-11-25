@@ -10,5 +10,8 @@
   "license": "MIT",
   "files": [
     "p5.sdf.js"
-  ]
+  ],
+  "devDependencies": {
+    "puppeteer": "^25.18.1"
+  }
 }
