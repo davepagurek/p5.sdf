@@ -9,13 +9,13 @@ This library tries to make it as easy as possible to use these techniques inside
 Add it via a script tag:
 
 ```html
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/p5.sdf@0.0.2/p5.sdf.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/p5.sdf@0.0.3/p5.sdf.js"></script>
 ```
 
 Or for OpenProcessing, you can add it directly via CDN:
 
 ```
-https://cdn.jsdelivr.net/npm/p5.sdf@0.0.2/p5.sdf.js
+https://cdn.jsdelivr.net/npm/p5.sdf@0.0.3/p5.sdf.js
 ```
 
 Or fork this project on the p5.js web editor: https://editor.p5js.org/davepagurek/sketches/BHmhdypVb

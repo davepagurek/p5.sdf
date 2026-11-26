@@ -534,6 +534,7 @@ function sdf(p5, fn) {
         instanceRef,
         computeMaterial: hook.sdfComputeMaterial,
         constants: new Map(),
+        usesSpecular: false,
       };
       const defaults = {};
       for (const field of MATERIAL_FIELDS) {
@@ -680,6 +681,7 @@ function sdf(p5, fn) {
         return withScoped(state, { ambient: colorRgb(this, args) });
       },
       specularMaterial(state, config, ...args) {
+        config.usesSpecular = true;
         return withScoped(state, { specular: colorRgb(this, args) });
       },
       emissiveMaterial(state, config, ...args) {
@@ -783,6 +785,10 @@ function sdf(p5, fn) {
         return state.global;
       },
 
+      _usesSpecular(state, config) {
+        return config.usesSpecular;
+      },
+
       _apply(state, config) {
         const { hook } = config;
         hook.sdfDist = state.global.dist;
@@ -837,6 +843,7 @@ function sdf(p5, fn) {
   fn.buildSDF = function(callback) {
     const sketch = this;
     let resultApplied = false;
+    let usesSpecular = false;
     // The callback goes straight to modify() because modify() re-evaluates its
     // source, so a wrapper function would hide the user's code and the
     // variables it closes over. Writing the result into the hook has to happen
@@ -850,6 +857,7 @@ function sdf(p5, fn) {
         hook.end = function(...args) {
           hook.end = end;
           instance._apply();
+          usesSpecular = instance._usesSpecular();
           resultApplied = true;
           return end.apply(this, args);
         };
@@ -872,6 +880,12 @@ function sdf(p5, fn) {
         sketch.noStroke();
 
         const renderer = sketch._renderer;
+        // p5 only computes the specular term of its lighting when a call to
+        // specularMaterial() outside the build has turned it on, and the
+        // per-shape specular colors set inside the build don't do that
+        if (usesSpecular && !renderer.states._useSpecularMaterial) {
+          renderer.states.setValue('_useSpecularMaterial', true);
+        }
         const mvMatrix = renderer.uMVMatrix.copy();
         mvMatrix.invert(mvMatrix);
         shader.setUniform('uInverseModelViewMatrix', mvMatrix.mat4);
