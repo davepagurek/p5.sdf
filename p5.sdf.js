@@ -357,6 +357,8 @@ function sdf(p5, fn) {
     });
   };
 
+  const isVector = v => v && typeof v === 'object' && !v.isStrandsNode && !Array.isArray(v) && 'x' in v;
+
   const rotateAxis = (name) => function(state, config, angle) {
     return movePoint(this, state, identity => this[name](identity, neg(angle)));
   };
@@ -466,6 +468,16 @@ function sdf(p5, fn) {
     return { scoped, global: next };
   };
 
+  const boxDist = (sketch, p, width, height, depth) => {
+    const b = sketch.vec3(
+      node(width).mult(0.5),
+      node(height).mult(0.5),
+      node(depth).mult(0.5)
+    );
+    const q = sketch.abs(p).sub(b);
+    return sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0));
+  };
+
   const shape = (compute) => function(state, config, ...args) {
     return addShape(this, state, config, compute(this, state.scoped.point, ...args));
   };
@@ -562,14 +574,32 @@ function sdf(p5, fn) {
       // TRANSFORMS
       ////////////////////////
       translate(state, config, x, y = 0, z = 0) {
+        if (isVector(x)) {
+          ({ x, y, z } = x);
+        }
         return movePoint(this, state, identity =>
           this.translate(identity, neg(x), neg(y), neg(z))
         );
       },
-      scale(state, config, s) {
+      scale(state, config, x, y, z) {
+        if (isVector(x)) {
+          ({ x, y, z } = x);
+        } else if (Array.isArray(x)) {
+          [x, y, z = 1] = x;
+        }
+        if (y === undefined) {
+          return withScoped(state, {
+            point: state.scoped.point.div(node(x)),
+            distScale: state.scoped.distScale.mult(node(x)),
+          });
+        }
+        // Per-axis scaling stretches distances by different amounts, so the
+        // smallest factor is the one that keeps every raymarch step safe
+        const factors = this.vec3(x, y, z === undefined ? 1 : z);
+        const smallest = this.min(this.min(factors.x, factors.y), factors.z);
         return withScoped(state, {
-          point: state.scoped.point.div(node(s)),
-          distScale: state.scoped.distScale.mult(node(s)),
+          point: state.scoped.point.div(factors),
+          distScale: state.scoped.distScale.mult(smallest),
         });
       },
       rotate(state, config, angle, axis) {
@@ -671,16 +701,8 @@ function sdf(p5, fn) {
       ////////////////////////
       // PRIMITIVES
       ////////////////////////
-      sphere: shape((sketch, p, r) => sketch.length(p).sub(r)),
-      box: shape((sketch, p, width, height = width, depth = width) => {
-        const b = sketch.vec3(
-          node(width).mult(0.5),
-          node(height).mult(0.5),
-          node(depth).mult(0.5)
-        );
-        const q = sketch.abs(p).sub(b);
-        return sketch.length(sketch.max(q, 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, q.z)), 0.0));
-      }),
+      sphere: shape((sketch, p, r = 50) => sketch.length(p).sub(r)),
+      box: shape((sketch, p, width = 50, height = width, depth = height) => boxDist(sketch, p, width, height, depth)),
       roundBox: shape((sketch, p, width, height = width, depth = width, r) => {
         const rNode = node(r);
         const b = sketch.vec3(
@@ -704,7 +726,7 @@ function sdf(p5, fn) {
         const d3 = sketch.length(sketch.max(sketch.vec3(q.x, q.y, pv.z), 0.0)).add(sketch.min(sketch.max(q.x, sketch.max(q.y, pv.z)), 0.0));
         return sketch.min(sketch.min(d1, d2), d3);
       }),
-      cylinder: shape((sketch, p, radius, height) => {
+      cylinder: shape((sketch, p, radius = 50, height = radius) => {
         const xzLen = sketch.length(sketch.vec2(p.x, p.z));
         const d2 = sketch.vec2(
           xzLen.sub(node(radius)),
@@ -716,18 +738,39 @@ function sdf(p5, fn) {
         const py = p.y.sub(sketch.clamp(p.y, 0.0, h));
         return sketch.length(sketch.vec3(p.x, py, p.z)).sub(node(r));
       }),
-      torus: shape((sketch, p, radius, tubeRadius) => {
+      torus: shape((sketch, p, radius = 50, tubeRadius = 10) => {
         const xzLen = sketch.length(sketch.vec2(p.x, p.z));
         return sketch.length(sketch.vec2(xzLen.sub(radius), p.y)).sub(tubeRadius);
       }),
-      plane: shape((sketch, p, nx, ny, nz, h) =>
+      plane: shape((sketch, p, width = 50, height = width) => boxDist(sketch, p, width, height, 1)),
+      infinitePlane: shape((sketch, p, nx, ny, nz, h) =>
         node(nx).mult(p.x).add(node(ny).mult(p.y)).add(node(nz).mult(p.z)).add(node(h))
       ),
-      ellipsoid: shape((sketch, p, rx, ry, rz) => {
+      ellipsoid: shape((sketch, p, rx = 50, ry = rx, rz = rx) => {
         const r = sketch.vec3(rx, ry, rz);
         const k0 = sketch.length(p.div(r));
         const k1 = sketch.length(p.div(r.mult(r)));
         return k0.mult(k0.sub(node(1.0))).div(k1);
+      }),
+      cone: shape((sketch, p, radius = 50, height = radius) => {
+        const r = node(radius);
+        const h = node(height).mult(0.5);
+        const qx = sketch.length(sketch.vec2(p.x, p.z));
+        const qy = p.y;
+        const baseR = r.mult(sketch.step(qy, 0.0));
+        const cax = qx.sub(sketch.min(qx, baseR));
+        const cay = sketch.abs(qy).sub(h);
+        const t = sketch.clamp(
+          qx.mult(r).add(h.mult(2.0).mult(h.sub(qy))).div(r.mult(r).add(h.mult(h).mult(4.0))),
+          0.0,
+          1.0
+        );
+        const cbx = qx.sub(r.mult(t));
+        const cby = qy.sub(h).add(h.mult(2.0).mult(t));
+        const inside = node(1.0).sub(sketch.step(0.0, cbx)).mult(node(1.0).sub(sketch.step(0.0, cay)));
+        const sign = node(1.0).sub(inside.mult(2.0));
+        const d2 = sketch.min(cax.mult(cax).add(cay.mult(cay)), cbx.mult(cbx).add(cby.mult(cby)));
+        return sign.mult(sketch.sqrt(d2));
       }),
       octahedron: shape((sketch, p, s) => {
         const q = sketch.abs(p);

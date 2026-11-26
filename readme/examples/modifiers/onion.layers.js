@@ -11,7 +11,7 @@ function setup() {
       })
     })
     intersect()
-    plane(0, 0, 1, 0)
+    infinitePlane(0, 0, 1, 0)
   })
 }
 

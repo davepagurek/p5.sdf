@@ -7,7 +7,7 @@ function setup() {
       sphere(80)
     })
     intersect()
-    plane(0, 0, 1, 0)
+    infinitePlane(0, 0, 1, 0)
   })
 }
 

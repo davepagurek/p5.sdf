@@ -215,7 +215,7 @@ Within `buildSDF`, you have a number of primitive shapes that you can use and co
 
 <!-- p5.sdf example: sphere -->
 ```
-sphere(radius)
+sphere([radius])
 ```
 
 <table>
@@ -257,7 +257,7 @@ function draw() {
 
 <!-- p5.sdf example: box -->
 ```
-box(width, [height], [depth])
+box([width], [height], [depth])
 ```
 
 <table>
@@ -385,7 +385,7 @@ function draw() {
 
 <!-- p5.sdf example: cylinder -->
 ```
-cylinder(radius, height)
+cylinder([radius], [height])
 ```
 
 <table>
@@ -470,7 +470,7 @@ function draw() {
 
 <!-- p5.sdf example: torus -->
 ```
-torus(radius, tubeRadius)
+torus([radius], [tubeRadius])
 ```
 
 <table>
@@ -512,7 +512,7 @@ function draw() {
 
 <!-- p5.sdf example: plane -->
 ```
-plane(nx, ny, nz, offset)
+plane([width], [height])
 ```
 
 <table>
@@ -525,9 +525,7 @@ let shape
 function setup() {
   createCanvas(200, 200, WEBGL)
   shape = buildSDF(() => {
-    sphere(90)
-    intersect()
-    plane(0, 1, 0, 0)
+    plane(120, 80)
   })
 }
 
@@ -552,11 +550,55 @@ function draw() {
 </table>
 <!-- /p5.sdf example: plane -->
 
+#### infinitePlane
+
+<!-- p5.sdf example: infinitePlane -->
+```
+infinitePlane(nx, ny, nz, offset)
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    sphere(90)
+    intersect()
+    infinitePlane(0, 1, 0, 0)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/infinitePlane.png" width="200" alt="infinitePlane example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: infinitePlane -->
+
 #### ellipsoid
 
 <!-- p5.sdf example: ellipsoid -->
 ```
-ellipsoid(radiusX, radiusY, radiusZ)
+ellipsoid([radiusX], [radiusY], [radiusZ])
 ```
 
 <table>
@@ -593,6 +635,48 @@ function draw() {
 </tr>
 </table>
 <!-- /p5.sdf example: ellipsoid -->
+
+#### cone
+
+<!-- p5.sdf example: cone -->
+```
+cone([radius], [height])
+```
+
+<table>
+<tr>
+<td>
+
+```js
+let shape
+
+function setup() {
+  createCanvas(200, 200, WEBGL)
+  shape = buildSDF(() => {
+    cone(60, 120)
+  })
+}
+
+function draw() {
+  background(30)
+  orbitControl()
+  ambientLight(70)
+  directionalLight(200, 200, 200, 0.3, 0.6, -1)
+  specularMaterial(150)
+  shininess(100)
+  shape.draw()
+}
+```
+
+</td>
+<td>
+
+<img src="readme/images/primitives/cone.png" width="200" alt="cone example">
+
+</td>
+</tr>
+</table>
+<!-- /p5.sdf example: cone -->
 
 #### octahedron
 
@@ -645,6 +729,7 @@ These are generally the same as in regular p5! But there are a few extra additio
 <!-- p5.sdf example: translate -->
 ```
 translate(x, [y], [z])
+translate(vector)
 ```
 
 <table>
@@ -690,6 +775,8 @@ function draw() {
 <!-- p5.sdf example: scale -->
 ```
 scale(factor)
+scale(x, y, [z])
+scale(vector)
 ```
 
 <table>
@@ -1524,7 +1611,7 @@ function setup() {
       sphere(80)
     })
     intersect()
-    plane(0, 0, 1, 0)
+    infinitePlane(0, 0, 1, 0)
   })
 }
 
@@ -1538,8 +1625,6 @@ function draw() {
   shape.draw()
 }
 ```
-
-Try calling it multiple times to make layers! Do it for Shrek!!
 
 </td>
 <td>
@@ -1570,7 +1655,7 @@ function setup() {
       })
     })
     intersect()
-    plane(0, 0, 1, 0)
+    infinitePlane(0, 0, 1, 0)
   })
 }
 

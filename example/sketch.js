@@ -45,7 +45,7 @@ function setup() {
   sdfs.push(buildSDF(function() {
     sphere(70)
     intersect()
-    plane(0, 1, 0, 10)
+    infinitePlane(0, 1, 0, 10)
   }))
 
   sdfs.push(buildSDF(function() {
@@ -133,7 +133,7 @@ function setup() {
       sphere(65)
     })
     intersect()
-    plane(0, 1, 0, 0)
+    infinitePlane(0, 1, 0, 0)
   }))
 
   sdfs.push(buildSDF(function() {

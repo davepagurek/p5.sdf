@@ -3,9 +3,7 @@ let shape
 function setup() {
   createCanvas(200, 200, WEBGL)
   shape = buildSDF(() => {
-    sphere(90)
-    intersect()
-    plane(0, 1, 0, 0)
+    plane(120, 80)
   })
 }
 

@@ -7,10 +7,10 @@
     "draw(boundsCallback)"
   ],
   "sphere": [
-    "sphere(radius)"
+    "sphere([radius])"
   ],
   "box": [
-    "box(width, [height], [depth])"
+    "box([width], [height], [depth])"
   ],
   "roundBox": [
     "roundBox(width, height, depth, radius)"
@@ -19,28 +19,37 @@
     "boxFrame(width, height, depth, thickness)"
   ],
   "cylinder": [
-    "cylinder(radius, height)"
+    "cylinder([radius], [height])"
   ],
   "capsule": [
     "capsule(height, radius)"
   ],
   "torus": [
-    "torus(radius, tubeRadius)"
+    "torus([radius], [tubeRadius])"
   ],
   "plane": [
-    "plane(nx, ny, nz, offset)"
+    "plane([width], [height])"
+  ],
+  "infinitePlane": [
+    "infinitePlane(nx, ny, nz, offset)"
   ],
   "ellipsoid": [
-    "ellipsoid(radiusX, radiusY, radiusZ)"
+    "ellipsoid([radiusX], [radiusY], [radiusZ])"
+  ],
+  "cone": [
+    "cone([radius], [height])"
   ],
   "octahedron": [
     "octahedron(size)"
   ],
   "translate": [
-    "translate(x, [y], [z])"
+    "translate(x, [y], [z])",
+    "translate(vector)"
   ],
   "scale": [
-    "scale(factor)"
+    "scale(factor)",
+    "scale(x, y, [z])",
+    "scale(vector)"
   ],
   "rotate": [
     "rotate(angle, [axis])"
