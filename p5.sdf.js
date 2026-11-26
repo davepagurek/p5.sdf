@@ -589,15 +589,20 @@ function sdf(p5, fn) {
           [x, y, z = 1] = x;
         }
         if (y === undefined) {
-          return withScoped(state, {
-            point: state.scoped.point.div(node(x)),
-            distScale: state.scoped.distScale.mult(node(x)),
-          });
+          y = z = x;
+        } else if (z === undefined) {
+          z = 1;
         }
+        // A factor of exactly 0 would divide the point by zero, and the NaN
+        // would spread through the blend weights into every material. Keeping
+        // the magnitude above a tiny minimum makes the shape collapse instead
+        const MIN_SCALE = 1e-3;
+        const sign = f => this.step(0.0, f).mult(2.0).sub(1.0);
+        const safe = f => this.max(this.abs(f), MIN_SCALE).mult(sign(f));
+        const factors = this.vec3(safe(node(x)), safe(node(y)), safe(node(z)));
         // Per-axis scaling stretches distances by different amounts, so the
-        // smallest factor is the one that keeps every raymarch step safe
-        const factors = this.vec3(x, y, z === undefined ? 1 : z);
-        const smallest = this.min(this.min(factors.x, factors.y), factors.z);
+        // smallest magnitude is the one that keeps every raymarch step safe
+        const smallest = this.min(this.min(this.abs(factors.x), this.abs(factors.y)), this.abs(factors.z));
         return withScoped(state, {
           point: state.scoped.point.div(factors),
           distScale: state.scoped.distScale.mult(smallest),

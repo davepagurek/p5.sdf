@@ -1,6 +1,6 @@
 {
   "name": "p5.sdf",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "SDF raymarching for p5.strands",
   "main": "p5.sdf.js",
   "scripts": {
